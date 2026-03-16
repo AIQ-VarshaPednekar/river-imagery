@@ -22,7 +22,6 @@ Sentinel_Merged/
 river_geometries_batches/
 
 # ── Logs ───────────────────────────────────────────────────────────
-*.txt
 !README.md
 
 # ── GIS / Large Files ──────────────────────────────────────────────
