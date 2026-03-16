@@ -1,0 +1,49 @@
+# ── Credentials & Secrets ─────────────────────────────────────────
+client_secret*.json
+drive_token.pickle
+*.pickle
+*.pem
+*.key
+
+# ── Python Environment ─────────────────────────────────────────────
+river_env/
+venv/
+env/
+.env
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# ── Output / Imagery Data ──────────────────────────────────────────
+Imagery_Output/
+Sentinel_Merged/
+river_geometries_batches/
+
+# ── Logs ───────────────────────────────────────────────────────────
+*.txt
+!README.md
+
+# ── GIS / Large Files ──────────────────────────────────────────────
+*.tif
+*.tiff
+*.gpkg
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+*.sbn
+*.sbx
+
+# ── OS Files ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDE ────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.user
