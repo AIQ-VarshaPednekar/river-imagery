@@ -4,6 +4,11 @@ import numpy as np
 import rasterio
 from rasterio.merge import merge
 from rasterio.transform import from_bounds
+import subprocess
+from rasterio.warp import calculate_default_transform, reproject, Resampling as WarpResampling
+
+TARGET_CRS = "EPSG:32644"  # ← change to your river's UTM zone (check your tiles)
+NODATA_VAL = -9999         # ← safer than 0 (Sentinel-2 water pixels can be 0)
 
 input_folder = r"C:\Users\My Pc\Documents\river project aiq\Imagery_Output\Sentinel"
 output_folder = r"C:\Users\My Pc\Documents\river project aiq\Imagery_Output\Sentinel_Merged"
@@ -27,6 +32,7 @@ for f in all_files:
 
 print(f"Found {len(river_tiles)} rivers to merge")
 
+
 def merge_tiled(valid_tiles, output_file):
     """Memory-efficient merge using tiled windowed writing."""
 
@@ -44,7 +50,6 @@ def merge_tiled(valid_tiles, output_file):
     res_x = src_files[0].res[0]
     res_y = src_files[0].res[1]
     count = src_files[0].count
-    crs   = src_files[0].crs
 
     width  = int(round((right - left) / res_x))
     height = int(round((top - bottom) / res_y))
@@ -53,16 +58,18 @@ def merge_tiled(valid_tiles, output_file):
 
     out_meta = src_files[0].meta.copy()
     out_meta.update({
-        "driver": "GTiff",
-        "height": height,
-        "width": width,
+        "driver":    "GTiff",
+        "height":    height,
+        "width":     width,
         "transform": transform,
-        "dtype": "float32",       # float32 uses 4x less RAM than float64
-        "compress": "lzw",
-        "tiled": True,
+        "crs":       TARGET_CRS,   # force a single CRS — fixes CRS mismatch warning
+        "dtype":     "float32",
+        "compress":  "lzw",
+        "tiled":     True,
         "blockxsize": 512,
         "blockysize": 512,
-        "BIGTIFF": "YES"          # allow >4GB output files
+        "nodata":    NODATA_VAL,   # tells QGIS what to treat as transparent
+        "BIGTIFF":   "YES"         # allow >4GB output files
     })
 
     print(f"  Output size: {width} x {height} px, {count} bands")
@@ -76,8 +83,8 @@ def merge_tiled(valid_tiles, output_file):
             row_count = min(CHUNK, height - row_off)
             print(f"  Processing rows {row_off}–{row_off+row_count} / {height}...", end='\r')
 
-            # Empty canvas for this chunk
-            canvas = np.zeros((count, row_count, width), dtype=np.float32)
+            # Canvas filled with nodata (not zeros)
+            canvas = np.full((count, row_count, width), fill_value=NODATA_VAL, dtype=np.float32)
             mask   = np.zeros((row_count, width), dtype=bool)
 
             chunk_top    = top - row_off * res_y
@@ -92,10 +99,10 @@ def merge_tiled(valid_tiles, output_file):
 
                 # Window in dest coords
                 win = rasterio.windows.from_bounds(
-                    max(left, src.bounds.left),
+                    max(left,         src.bounds.left),
                     max(chunk_bottom, src.bounds.bottom),
-                    min(right, src.bounds.right),
-                    min(chunk_top, src.bounds.top),
+                    min(right,        src.bounds.right),
+                    min(chunk_top,    src.bounds.top),
                     transform=transform
                 )
 
@@ -109,10 +116,10 @@ def merge_tiled(valid_tiles, output_file):
 
                 # Window in source tile coords
                 src_win = rasterio.windows.from_bounds(
-                    max(left, src.bounds.left),
+                    max(left,         src.bounds.left),
                     max(chunk_bottom, src.bounds.bottom),
-                    min(right, src.bounds.right),
-                    min(chunk_top, src.bounds.top),
+                    min(right,        src.bounds.right),
+                    min(chunk_top,    src.bounds.top),
                     transform=src.transform
                 )
 
@@ -149,6 +156,8 @@ def merge_tiled(valid_tiles, output_file):
         src.close()
 
 
+# ── Main loop ────────────────────────────────────────────────────────────────
+
 for river_name, tiles in river_tiles.items():
     output_file = os.path.join(output_folder, f"{river_name}_merged.tif")
 
@@ -179,6 +188,23 @@ for river_name, tiles in river_tiles.items():
         print(f"\n✅ Done: {river_name}_merged.tif ({size_gb:.2f} GB)")
     except Exception as e:
         print(f"\n  ✗ Merge failed: {e}")
+
+# ── Build statistics + overviews (makes QGIS display correctly) ──────────────
+
+print("\nBuilding statistics and overviews for QGIS...")
+for river_name in river_tiles:
+    output_file = os.path.join(output_folder, f"{river_name}_merged.tif")
+    if os.path.exists(output_file):
+        print(f"  Stats: {river_name}...")
+        subprocess.run(
+            ["gdalinfo", "-stats", output_file],
+            capture_output=True
+        )
+        subprocess.run(
+            ["gdaladdo", "-ro", output_file, "2", "4", "8", "16"],
+            capture_output=True
+        )
+print("Statistics and overviews done!")
 
 print("\n==============================")
 print("All rivers processed!")

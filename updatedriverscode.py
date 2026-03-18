@@ -86,7 +86,7 @@ SKIP_EXISTING = True
 
 # Process specific rivers only (leave empty list [] to process all)
 # Example: SPECIFIC_RIVERS = ["Ambika", "Ganga", "Yamuna"]
-SPECIFIC_RIVERS = ["Ajay"]
+SPECIFIC_RIVERS = ["Amba"]
 
 # =============================================================================
 # GOOGLE DRIVE DOWNLOAD CONFIGURATION

@@ -89,7 +89,7 @@ def list_all_tif_files(creds):
 
     while True:
         params = {
-            "q": "name contains 'Ajay' and name contains '.tif' and trashed=false",
+            "q": "name contains 'Amba' and name contains '.tif' and trashed=false",
             "spaces": "drive",
             "fields": "nextPageToken, files(id, name, size)",
             "pageSize": 100,
