@@ -26,18 +26,18 @@ from sqlalchemy import create_engine, text
 from shapely import wkb
 import json
 import os
-import io
+# import io
 import time
 from datetime import datetime
 from urllib.parse import quote_plus
 
 # Google Drive API imports
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
-import pickle
+# from google.oauth2.credentials import Credentials
+# from google_auth_oauthlib.flow import InstalledAppFlow
+# from google.auth.transport.requests import Request
+# from googleapiclient.discovery import build
+# from googleapiclient.http import MediaIoBaseDownload
+# import pickle
 
 # =============================================================================
 # USER CONFIGURATION - MODIFY THESE VALUES
@@ -86,36 +86,36 @@ SKIP_EXISTING = True
 
 # Process specific rivers only (leave empty list [] to process all)
 # Example: SPECIFIC_RIVERS = ["Ambika", "Ganga", "Yamuna"]
-SPECIFIC_RIVERS = ["Amba"]
+SPECIFIC_RIVERS = ["Ambika"]
 
 # =============================================================================
 # GOOGLE DRIVE DOWNLOAD CONFIGURATION
 # =============================================================================
 
 # Enable automatic download from Google Drive after GEE tasks complete
-AUTO_DOWNLOAD_FROM_DRIVE = True
+# AUTO_DOWNLOAD_FROM_DRIVE = True
 
 # Path to Google OAuth credentials file (client_secret_*.json)
 # Token file to store user's access and refresh tokens
-GOOGLE_CREDENTIALS_FILE = r"C:\Users\My Pc\Documents\river project aiq\client_secret.json"
-TOKEN_FILE = r"C:\Users\My Pc\Documents\river project aiq\drive_token.pickle"
+# GOOGLE_CREDENTIALS_FILE = r"C:\Users\My Pc\Documents\river project aiq\client_secret.json"
+# TOKEN_FILE = r"C:\Users\My Pc\Documents\river project aiq\drive_token.pickle"
 
 
 # Local download paths (separate for Sentinel and DEM)
-LOCAL_DOWNLOAD_PATH_SENTINEL = r"C:\Users\My Pc\Documents\river project aiq\Imagery_Output\Sentinel"
-LOCAL_DOWNLOAD_PATH_DEM = r"C:\Users\My Pc\Documents\river project aiq\Imagery_Output\DEM"
+# LOCAL_DOWNLOAD_PATH_SENTINEL = r"C:\Users\My Pc\Documents\river project aiq\Imagery_Output\Sentinel"
+# LOCAL_DOWNLOAD_PATH_DEM = r"C:\Users\My Pc\Documents\river project aiq\Imagery_Output\DEM"
 
 # Wait for all GEE tasks to complete before downloading (True), or start downloading as tasks complete (False)
-WAIT_ALL_TASKS_COMPLETE = False
+# WAIT_ALL_TASKS_COMPLETE = False
 
 # Task polling interval in seconds (how often to check task status)
-TASK_POLL_INTERVAL = 30
+# TASK_POLL_INTERVAL = 30
 
 # Maximum wait time for tasks in hours (0 = unlimited)
-MAX_WAIT_HOURS = 12
+# MAX_WAIT_HOURS = 12
 
 # Delete files from Google Drive after successful download
-DELETE_AFTER_DOWNLOAD = False
+# DELETE_AFTER_DOWNLOAD = False
 
 # =============================================================================
 # DATABASE CONFIGURATION
@@ -494,357 +494,357 @@ def check_existing_files(river_name, output_folder, sentinel_subfolder, dem_subf
 # =============================================================================
 
 # Google Drive API scope
-SCOPES = ['https://www.googleapis.com/auth/drive.readonly', 
-          'https://www.googleapis.com/auth/drive.file']
+# SCOPES = ['https://www.googleapis.com/auth/drive.readonly', 
+#           'https://www.googleapis.com/auth/drive.file']
 
 
-def authenticate_google_drive():
-    """
-    Authenticate with Google Drive API and return service object.
-    Uses OAuth2 flow with local credentials file.
-    """
-    print("\nAuthenticating with Google Drive...")
+# def authenticate_google_drive():
+#     """
+#     Authenticate with Google Drive API and return service object.
+#     Uses OAuth2 flow with local credentials file.
+#     """
+#     print("\nAuthenticating with Google Drive...")
     
-    creds = None
+#     creds = None
     
-    # Check if token file exists with saved credentials
-    if os.path.exists(TOKEN_FILE):
-        print("  Loading saved credentials...")
-        with open(TOKEN_FILE, 'rb') as token:
-            creds = pickle.load(token)
+#     # Check if token file exists with saved credentials
+#     if os.path.exists(TOKEN_FILE):
+#         print("  Loading saved credentials...")
+#         with open(TOKEN_FILE, 'rb') as token:
+#             creds = pickle.load(token)
     
-    # If no valid credentials, do the OAuth flow
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            print("  Refreshing expired credentials...")
-            creds.refresh(Request())
-        else:
-            if not os.path.exists(GOOGLE_CREDENTIALS_FILE):
-                raise FileNotFoundError(
-                    f"Google credentials file not found: {GOOGLE_CREDENTIALS_FILE}\n"
-                    f"Please download OAuth 2.0 credentials from Google Cloud Console."
-                )
-            print("  Starting OAuth2 flow (browser will open)...")
-            flow = InstalledAppFlow.from_client_secrets_file(GOOGLE_CREDENTIALS_FILE, SCOPES)
-            creds = flow.run_local_server(port=0)
+#     # If no valid credentials, do the OAuth flow
+#     if not creds or not creds.valid:
+#         if creds and creds.expired and creds.refresh_token:
+#             print("  Refreshing expired credentials...")
+#             creds.refresh(Request())
+#         else:
+#             if not os.path.exists(GOOGLE_CREDENTIALS_FILE):
+#                 raise FileNotFoundError(
+#                     f"Google credentials file not found: {GOOGLE_CREDENTIALS_FILE}\n"
+#                     f"Please download OAuth 2.0 credentials from Google Cloud Console."
+#                 )
+#             print("  Starting OAuth2 flow (browser will open)...")
+#             flow = InstalledAppFlow.from_client_secrets_file(GOOGLE_CREDENTIALS_FILE, SCOPES)
+#             creds = flow.run_local_server(port=0)
         
-        # Save credentials for next run
-        with open(TOKEN_FILE, 'wb') as token:
-            pickle.dump(creds, token)
-        print("  ✓ Credentials saved for future use")
+#         # Save credentials for next run
+#         with open(TOKEN_FILE, 'wb') as token:
+#             pickle.dump(creds, token)
+#         print("  ✓ Credentials saved for future use")
     
-    # Build Drive service
-    service = build('drive', 'v3', credentials=creds)
-    print("✓ Google Drive authenticated successfully")
+#     # Build Drive service
+#     service = build('drive', 'v3', credentials=creds)
+#     print("✓ Google Drive authenticated successfully")
     
-    return service
+#     return service
 
 
-def find_drive_folder(service, folder_name, parent_id=None):
-    """
-    Find a folder in Google Drive by name.
-    Returns folder ID or None if not found.
-    """
-    query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
-    if parent_id:
-        query += f" and '{parent_id}' in parents"
+# def find_drive_folder(service, folder_name, parent_id=None):
+#     """
+#     Find a folder in Google Drive by name.
+#     Returns folder ID or None if not found.
+#     """
+#     query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+#     if parent_id:
+#         query += f" and '{parent_id}' in parents"
     
-    results = service.files().list(
-        q=query,
-        spaces='drive',
-        fields='files(id, name)'
-    ).execute()
+#     results = service.files().list(
+#         q=query,
+#         spaces='drive',
+#         fields='files(id, name)'
+#     ).execute()
     
-    files = results.get('files', [])
-    return files[0]['id'] if files else None
+#     files = results.get('files', [])
+#     return files[0]['id'] if files else None
 
 
-def list_drive_files(service, folder_id):
-    """
-    List all files in a Google Drive folder.
-    Returns list of file dictionaries with id, name, size.
-    """
-    files = []
-    page_token = None
+# def list_drive_files(service, folder_id):
+#     """
+#     List all files in a Google Drive folder.
+#     Returns list of file dictionaries with id, name, size.
+#     """
+#     files = []
+#     page_token = None
     
-    while True:
-        results = service.files().list(
-            q=f"'{folder_id}' in parents and trashed=false",
-            spaces='drive',
-            fields='nextPageToken, files(id, name, mimeType, size)',
-            pageToken=page_token,
-            pageSize=100
-        ).execute()
+#     while True:
+#         results = service.files().list(
+#             q=f"'{folder_id}' in parents and trashed=false",
+#             spaces='drive',
+#             fields='nextPageToken, files(id, name, mimeType, size)',
+#             pageToken=page_token,
+#             pageSize=100
+#         ).execute()
         
-        files.extend(results.get('files', []))
-        page_token = results.get('nextPageToken')
+#         files.extend(results.get('files', []))
+#         page_token = results.get('nextPageToken')
         
-        if not page_token:
-            break
+#         if not page_token:
+#             break
     
-    return files
+#     return files
 
 
-def download_file_from_drive(service, file_id, file_name, local_path):
-    """
-    Download a file from Google Drive to local path.
-    Shows progress during download.
-    """
-    # Create directory if needed
-    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+# def download_file_from_drive(service, file_id, file_name, local_path):
+#     """
+#     Download a file from Google Drive to local path.
+#     Shows progress during download.
+#     """
+#     # Create directory if needed
+#     os.makedirs(os.path.dirname(local_path), exist_ok=True)
     
-    # Request file content
-    request = service.files().get_media(fileId=file_id)
+#     # Request file content
+#     request = service.files().get_media(fileId=file_id)
     
-    # Download with progress
-    fh = io.FileIO(local_path, 'wb')
-    downloader = MediaIoBaseDownload(fh, request)
+#     # Download with progress
+#     fh = io.FileIO(local_path, 'wb')
+#     downloader = MediaIoBaseDownload(fh, request)
     
-    done = False
-    while not done:
-        status, done = downloader.next_chunk()
-        if status:
-            progress = int(status.progress() * 100)
-            print(f"      Downloading: {progress}%", end='\r')
+#     done = False
+#     while not done:
+#         status, done = downloader.next_chunk()
+#         if status:
+#             progress = int(status.progress() * 100)
+#             print(f"      Downloading: {progress}%", end='\r')
     
-    fh.close()
-    print(f"      ✓ Downloaded: {file_name}                    ")
+#     fh.close()
+#     print(f"      ✓ Downloaded: {file_name}                    ")
     
-    return local_path
+#     return local_path
 
 
-def delete_file_from_drive(service, file_id, file_name):
-    """
-    Delete a file from Google Drive.
-    """
-    try:
-        service.files().delete(fileId=file_id).execute()
-        print(f"      ✓ Deleted from Drive: {file_name}")
-        return True
-    except Exception as e:
-        print(f"      ⚠ Failed to delete {file_name}: {e}")
-        return False
+# def delete_file_from_drive(service, file_id, file_name):
+#     """
+#     Delete a file from Google Drive.
+#     """
+#     try:
+#         service.files().delete(fileId=file_id).execute()
+#         print(f"      ✓ Deleted from Drive: {file_name}")
+#         return True
+#     except Exception as e:
+#         print(f"      ⚠ Failed to delete {file_name}: {e}")
+#         return False
 
 
-def download_completed_files_from_drive(service, drive_folder_name, sentinel_path, dem_path, 
-                                        expected_sentinel_files, expected_dem_files, 
-                                        delete_after=False):
-    """
-    Download all completed files from Google Drive to local paths.
-    Organizes by Sentinel and DEM subfolders.
-    """
-    print(f"\n{'='*70}")
-    print("DOWNLOADING FILES FROM GOOGLE DRIVE")
-    print('='*70)
+# def download_completed_files_from_drive(service, drive_folder_name, sentinel_path, dem_path, 
+#                                         expected_sentinel_files, expected_dem_files, 
+#                                         delete_after=False):
+#     """
+#     Download all completed files from Google Drive to local paths.
+#     Organizes by Sentinel and DEM subfolders.
+#     """
+#     print(f"\n{'='*70}")
+#     print("DOWNLOADING FILES FROM GOOGLE DRIVE")
+#     print('='*70)
     
-    # Create local folders
-    os.makedirs(sentinel_path, exist_ok=True)
-    os.makedirs(dem_path, exist_ok=True)
+#     # Create local folders
+#     os.makedirs(sentinel_path, exist_ok=True)
+#     os.makedirs(dem_path, exist_ok=True)
     
-    # Find main Drive folder
-    results = {'sentinel': [], 'dem': [], 'errors': []}
+#     # Find main Drive folder
+#     results = {'sentinel': [], 'dem': [], 'errors': []}
 
-    # Find folders directly (GEE creates them with slash in name)
-    sentinel_folder_id = find_drive_folder(service, f"{drive_folder_name}/Sentinel")
-    dem_folder_id = find_drive_folder(service, f"{drive_folder_name}/DEM")
+#     # Find folders directly (GEE creates them with slash in name)
+#     sentinel_folder_id = find_drive_folder(service, f"{drive_folder_name}/Sentinel")
+#     dem_folder_id = find_drive_folder(service, f"{drive_folder_name}/DEM")
 
-    print(f"  ✓ Searching Drive folders...")
+#     print(f"  ✓ Searching Drive folders...")
 
-    if sentinel_folder_id:
-        print(f"\n  📡 Downloading Sentinel files...")
-        sentinel_files = list_drive_files(service, sentinel_folder_id)
+#     if sentinel_folder_id:
+#         print(f"\n  📡 Downloading Sentinel files...")
+#         sentinel_files = list_drive_files(service, sentinel_folder_id)
         
-        for file_info in sentinel_files:
-            if file_info['name'].endswith('.tif'):
-                try:
-                    local_file = os.path.join(sentinel_path, file_info['name'])
+#         for file_info in sentinel_files:
+#             if file_info['name'].endswith('.tif'):
+#                 try:
+#                     local_file = os.path.join(sentinel_path, file_info['name'])
                     
-                    # Skip if already exists locally
-                    if os.path.exists(local_file):
-                        print(f"      ⏭ Already exists: {file_info['name']}")
-                        results['sentinel'].append(file_info['name'])
-                        continue
+#                     # Skip if already exists locally
+#                     if os.path.exists(local_file):
+#                         print(f"      ⏭ Already exists: {file_info['name']}")
+#                         results['sentinel'].append(file_info['name'])
+#                         continue
                     
-                    download_file_from_drive(service, file_info['id'], file_info['name'], local_file)
-                    results['sentinel'].append(file_info['name'])
+#                     download_file_from_drive(service, file_info['id'], file_info['name'], local_file)
+#                     results['sentinel'].append(file_info['name'])
                     
-                    if delete_after:
-                        delete_file_from_drive(service, file_info['id'], file_info['name'])
+#                     if delete_after:
+#                         delete_file_from_drive(service, file_info['id'], file_info['name'])
                         
-                except Exception as e:
-                    print(f"      ✗ Error downloading {file_info['name']}: {e}")
-                    results['errors'].append((file_info['name'], str(e)))
-    else:
-        print(f"  ⚠ Sentinel subfolder not found in Drive")
+#                 except Exception as e:
+#                     print(f"      ✗ Error downloading {file_info['name']}: {e}")
+#                     results['errors'].append((file_info['name'], str(e)))
+#     else:
+#         print(f"  ⚠ Sentinel subfolder not found in Drive")
     
-    # Download DEM files
-    if dem_folder_id:
-        print(f"\n  🗻 Downloading DEM files...")
-        dem_files = list_drive_files(service, dem_folder_id)
+#     # Download DEM files
+#     if dem_folder_id:
+#         print(f"\n  🗻 Downloading DEM files...")
+#         dem_files = list_drive_files(service, dem_folder_id)
         
-        for file_info in dem_files:
-            if file_info['name'].endswith('.tif'):
-                try:
-                    local_file = os.path.join(dem_path, file_info['name'])
+#         for file_info in dem_files:
+#             if file_info['name'].endswith('.tif'):
+#                 try:
+#                     local_file = os.path.join(dem_path, file_info['name'])
                     
-                    # Skip if already exists locally
-                    if os.path.exists(local_file):
-                        print(f"      ⏭ Already exists: {file_info['name']}")
-                        results['dem'].append(file_info['name'])
-                        continue
+#                     # Skip if already exists locally
+#                     if os.path.exists(local_file):
+#                         print(f"      ⏭ Already exists: {file_info['name']}")
+#                         results['dem'].append(file_info['name'])
+#                         continue
                     
-                    download_file_from_drive(service, file_info['id'], file_info['name'], local_file)
-                    results['dem'].append(file_info['name'])
+#                     download_file_from_drive(service, file_info['id'], file_info['name'], local_file)
+#                     results['dem'].append(file_info['name'])
                     
-                    if delete_after:
-                        delete_file_from_drive(service, file_info['id'], file_info['name'])
+#                     if delete_after:
+#                         delete_file_from_drive(service, file_info['id'], file_info['name'])
                         
-                except Exception as e:
-                    print(f"      ✗ Error downloading {file_info['name']}: {e}")
-                    results['errors'].append((file_info['name'], str(e)))
-    else:
-        print(f"  ⚠ DEM subfolder not found in Drive")
+#                 except Exception as e:
+#                     print(f"      ✗ Error downloading {file_info['name']}: {e}")
+#                     results['errors'].append((file_info['name'], str(e)))
+#     else:
+#         print(f"  ⚠ DEM subfolder not found in Drive")
     
-    # Summary
-    print(f"\n  Download Summary:")
-    print(f"    Sentinel: {len(results['sentinel'])} files -> {sentinel_path}")
-    print(f"    DEM: {len(results['dem'])} files -> {dem_path}")
-    if results['errors']:
-        print(f"    Errors: {len(results['errors'])}")
+#     # Summary
+#     print(f"\n  Download Summary:")
+#     print(f"    Sentinel: {len(results['sentinel'])} files -> {sentinel_path}")
+#     print(f"    DEM: {len(results['dem'])} files -> {dem_path}")
+#     if results['errors']:
+#         print(f"    Errors: {len(results['errors'])}")
     
-    return results
+#     return results
 
 
-def wait_and_download_gee_tasks(service, task_names, drive_folder_name, sentinel_path, dem_path,
-                                 poll_interval=30, max_wait_hours=12, delete_after=False):
-    """
-    Wait for GEE tasks to complete and download files as they finish.
+# def wait_and_download_gee_tasks(service, task_names, drive_folder_name, sentinel_path, dem_path,
+#                                  poll_interval=30, max_wait_hours=12, delete_after=False):
+#     """
+#     Wait for GEE tasks to complete and download files as they finish.
     
-    Args:
-        service: Google Drive service object
-        task_names: List of expected task names (filenames without extension)
-        drive_folder_name: Name of the Drive folder
-        sentinel_path: Local path for Sentinel files
-        dem_path: Local path for DEM files
-        poll_interval: Seconds between status checks
-        max_wait_hours: Maximum hours to wait (0 = unlimited)
-        delete_after: Delete from Drive after successful download
-    """
-    print(f"\n{'='*70}")
-    print("MONITORING GEE TASKS & DOWNLOADING COMPLETED FILES")
-    print('='*70)
+#     Args:
+#         service: Google Drive service object
+#         task_names: List of expected task names (filenames without extension)
+#         drive_folder_name: Name of the Drive folder
+#         sentinel_path: Local path for Sentinel files
+#         dem_path: Local path for DEM files
+#         poll_interval: Seconds between status checks
+#         max_wait_hours: Maximum hours to wait (0 = unlimited)
+#         delete_after: Delete from Drive after successful download
+#     """
+#     print(f"\n{'='*70}")
+#     print("MONITORING GEE TASKS & DOWNLOADING COMPLETED FILES")
+#     print('='*70)
     
-    start_time = time.time()
-    max_wait_seconds = max_wait_hours * 3600 if max_wait_hours > 0 else float('inf')
+#     start_time = time.time()
+#     max_wait_seconds = max_wait_hours * 3600 if max_wait_hours > 0 else float('inf')
     
-    downloaded_files = set()
-    failed_tasks = set()
+#     downloaded_files = set()
+#     failed_tasks = set()
     
-    # Create local folders
-    os.makedirs(sentinel_path, exist_ok=True)
-    os.makedirs(dem_path, exist_ok=True)
+#     # Create local folders
+#     os.makedirs(sentinel_path, exist_ok=True)
+#     os.makedirs(dem_path, exist_ok=True)
     
-    while True:
-        # Check time limit
-        elapsed = time.time() - start_time
-        if elapsed > max_wait_seconds:
-            print(f"\n  ⚠ Maximum wait time ({max_wait_hours}h) exceeded")
-            break
+#     while True:
+#         # Check time limit
+#         elapsed = time.time() - start_time
+#         if elapsed > max_wait_seconds:
+#             print(f"\n  ⚠ Maximum wait time ({max_wait_hours}h) exceeded")
+#             break
         
-        # Get GEE task statuses
-        tasks = ee.batch.Task.list()
-        task_status = {}
+#         # Get GEE task statuses
+#         tasks = ee.batch.Task.list()
+#         task_status = {}
         
-        for task in tasks:
-            status = task.status()
-            name = status.get('description', '')
-            state = status.get('state', 'UNKNOWN')
-            task_status[name] = state
+#         for task in tasks:
+#             status = task.status()
+#             name = status.get('description', '')
+#             state = status.get('state', 'UNKNOWN')
+#             task_status[name] = state
         
-        # Count status
-        completed = sum(1 for name in task_names if task_status.get(name) == 'COMPLETED')
-        running = sum(1 for name in task_names if task_status.get(name) in ['RUNNING', 'READY'])
-        failed = sum(1 for name in task_names if task_status.get(name) == 'FAILED')
+#         # Count status
+#         completed = sum(1 for name in task_names if task_status.get(name) == 'COMPLETED')
+#         running = sum(1 for name in task_names if task_status.get(name) in ['RUNNING', 'READY'])
+#         failed = sum(1 for name in task_names if task_status.get(name) == 'FAILED')
         
-        total = len(task_names)
-        downloaded = len(downloaded_files)
+#         total = len(task_names)
+#         downloaded = len(downloaded_files)
         
-        print(f"\n  Status: {completed}/{total} completed, {running} running, {failed} failed, {downloaded} downloaded")
-        print(f"  Elapsed: {elapsed/60:.1f} min")
+#         print(f"\n  Status: {completed}/{total} completed, {running} running, {failed} failed, {downloaded} downloaded")
+#         print(f"  Elapsed: {elapsed/60:.1f} min")
         
-        # Check for newly completed tasks and download
-        for task in tasks:
-            status = task.status()
-            name = status.get('description', '')
-            state = status.get('state', '')
+#         # Check for newly completed tasks and download
+#         for task in tasks:
+#             status = task.status()
+#             name = status.get('description', '')
+#             state = status.get('state', '')
             
-            if name not in task_names:
-                continue
+#             if name not in task_names:
+#                 continue
             
-            if state == 'COMPLETED' and name not in downloaded_files:
-                # Determine type (Sentinel or DEM)
-                is_sentinel = '_sentinel' in name.lower()
-                is_dem = '_dem' in name.lower()
+#             if state == 'COMPLETED' and name not in downloaded_files:
+#                 # Determine type (Sentinel or DEM)
+#                 is_sentinel = '_sentinel' in name.lower()
+#                 is_dem = '_dem' in name.lower()
                 
-                # Wait a moment for file to appear in Drive
-                time.sleep(5)
+#                 # Wait a moment for file to appear in Drive
+#                 time.sleep(5)
                 
-                # Find and download the file
-                main_folder_id = find_drive_folder(service, drive_folder_name)
-                if True:
-                    if is_sentinel:
-                        subfolder_id = find_drive_folder(service, f"{drive_folder_name}/Sentinel")
-                        local_path = sentinel_path
-                    elif is_dem:
-                        subfolder_id = find_drive_folder(service, f"{drive_folder_name}/DEM")
-                        local_path = dem_path
-                    else:
-                        continue
+#                 # Find and download the file
+#                 main_folder_id = find_drive_folder(service, drive_folder_name)
+#                 if True:
+#                     if is_sentinel:
+#                         subfolder_id = find_drive_folder(service, f"{drive_folder_name}/Sentinel")
+#                         local_path = sentinel_path
+#                     elif is_dem:
+#                         subfolder_id = find_drive_folder(service, f"{drive_folder_name}/DEM")
+#                         local_path = dem_path
+#                     else:
+#                         continue
                     
-                    if subfolder_id:
-                        files = list_drive_files(service, subfolder_id)
-                        for f in files:
-                            if f['name'].startswith(name) and f['name'].endswith('.tif'):
-                                local_file = os.path.join(local_path, f['name'])
-                                if not os.path.exists(local_file):
-                                    try:
-                                        download_file_from_drive(service, f['id'], f['name'], local_file)
-                                        downloaded_files.add(name)
-                                        if delete_after:
-                                            delete_file_from_drive(service, f['id'], f['name'])
-                                    except Exception as e:
-                                        print(f"      ✗ Download error: {e}")
-                                else:
-                                    downloaded_files.add(name)
-                                break
+#                     if subfolder_id:
+#                         files = list_drive_files(service, subfolder_id)
+#                         for f in files:
+#                             if f['name'].startswith(name) and f['name'].endswith('.tif'):
+#                                 local_file = os.path.join(local_path, f['name'])
+#                                 if not os.path.exists(local_file):
+#                                     try:
+#                                         download_file_from_drive(service, f['id'], f['name'], local_file)
+#                                         downloaded_files.add(name)
+#                                         if delete_after:
+#                                             delete_file_from_drive(service, f['id'], f['name'])
+#                                     except Exception as e:
+#                                         print(f"      ✗ Download error: {e}")
+#                                 else:
+#                                     downloaded_files.add(name)
+#                                 break
             
-            elif state == 'FAILED' and name not in failed_tasks:
-                error = status.get('error_message', 'Unknown error')
-                print(f"    ✗ Task failed: {name} - {error}")
-                failed_tasks.add(name)
+#             elif state == 'FAILED' and name not in failed_tasks:
+#                 error = status.get('error_message', 'Unknown error')
+#                 print(f"    ✗ Task failed: {name} - {error}")
+#                 failed_tasks.add(name)
         
-        # Check if all done
-        if completed + failed >= total:
-            print(f"\n  ✓ All tasks finished ({completed} completed, {failed} failed)")
-            break
+#         # Check if all done
+#         if completed + failed >= total:
+#             print(f"\n  ✓ All tasks finished ({completed} completed, {failed} failed)")
+#             break
         
-        # Wait before next check
-        print(f"  Waiting {poll_interval}s before next check...", end='\r')
-        time.sleep(poll_interval)
+#         # Wait before next check
+#         print(f"  Waiting {poll_interval}s before next check...", end='\r')
+#         time.sleep(poll_interval)
     
-    # Final download sweep to catch any missed files
-    print("\n  Final download sweep...")
-    final_results = download_completed_files_from_drive(
-        service, drive_folder_name, sentinel_path, dem_path,
-        [], [], delete_after
-    )
+#     # Final download sweep to catch any missed files
+#     print("\n  Final download sweep...")
+#     final_results = download_completed_files_from_drive(
+#         service, drive_folder_name, sentinel_path, dem_path,
+#         [], [], delete_after
+#     )
     
-    return {
-        'downloaded': len(downloaded_files),
-        'failed_tasks': len(failed_tasks),
-        'sentinel_files': final_results['sentinel'],
-        'dem_files': final_results['dem']
-    }
+#     return {
+#         'downloaded': len(downloaded_files),
+#         'failed_tasks': len(failed_tasks),
+#         'sentinel_files': final_results['sentinel'],
+#         'dem_files': final_results['dem']
+#     }
 
 
 # =============================================================================
@@ -1064,92 +1064,92 @@ def main():
     # ==========================================================================
     # STEP 3: Automatic download from Google Drive to local machine
     # ==========================================================================
-    if AUTO_DOWNLOAD_FROM_DRIVE and (results['sentinel_tasks'] or results['dem_tasks']):
-        print(f"\n{'='*70}")
-        print("   AUTOMATIC DOWNLOAD FROM GOOGLE DRIVE")
-        print("="*70)
-        print(f"\nConfiguration:")
-        print(f"  Sentinel download path: {LOCAL_DOWNLOAD_PATH_SENTINEL}")
-        print(f"  DEM download path: {LOCAL_DOWNLOAD_PATH_DEM}")
-        print(f"  Wait for all tasks: {WAIT_ALL_TASKS_COMPLETE}")
-        print(f"  Poll interval: {TASK_POLL_INTERVAL}s")
-        print(f"  Max wait time: {MAX_WAIT_HOURS}h")
-        print(f"  Delete after download: {DELETE_AFTER_DOWNLOAD}")
+    # if AUTO_DOWNLOAD_FROM_DRIVE and (results['sentinel_tasks'] or results['dem_tasks']):
+    #     print(f"\n{'='*70}")
+    #     print("   AUTOMATIC DOWNLOAD FROM GOOGLE DRIVE")
+    #     print("="*70)
+    #     print(f"\nConfiguration:")
+    #     print(f"  Sentinel download path: {LOCAL_DOWNLOAD_PATH_SENTINEL}")
+    #     print(f"  DEM download path: {LOCAL_DOWNLOAD_PATH_DEM}")
+    #     print(f"  Wait for all tasks: {WAIT_ALL_TASKS_COMPLETE}")
+    #     print(f"  Poll interval: {TASK_POLL_INTERVAL}s")
+    #     print(f"  Max wait time: {MAX_WAIT_HOURS}h")
+    #     print(f"  Delete after download: {DELETE_AFTER_DOWNLOAD}")
         
-        try:
-            # Authenticate with Google Drive
-            drive_service = authenticate_google_drive()
+    #     try:
+    #         # Authenticate with Google Drive
+    #         drive_service = authenticate_google_drive()
             
-            # All task names to wait for
-            all_task_names = results['sentinel_tasks'] + results['dem_tasks']
+    #         # All task names to wait for
+    #         all_task_names = results['sentinel_tasks'] + results['dem_tasks']
             
-            if WAIT_ALL_TASKS_COMPLETE:
-                # Wait for all tasks to complete, then download everything
-                print(f"\n  Waiting for all {len(all_task_names)} GEE tasks to complete...")
+    #         if WAIT_ALL_TASKS_COMPLETE:
+    #             # Wait for all tasks to complete, then download everything
+    #             print(f"\n  Waiting for all {len(all_task_names)} GEE tasks to complete...")
                 
-                # Wait for completion
-                download_results = wait_and_download_gee_tasks(
-                    service=drive_service,
-                    task_names=all_task_names,
-                    drive_folder_name=DRIVE_FOLDER,
-                    sentinel_path=LOCAL_DOWNLOAD_PATH_SENTINEL,
-                    dem_path=LOCAL_DOWNLOAD_PATH_DEM,
-                    poll_interval=TASK_POLL_INTERVAL,
-                    max_wait_hours=MAX_WAIT_HOURS,
-                    delete_after=DELETE_AFTER_DOWNLOAD
-                )
-            else:
-                # Download files as they complete (progressive download)
-                print(f"\n  Starting progressive download (files download as tasks complete)...")
+    #             # Wait for completion
+    #             download_results = wait_and_download_gee_tasks(
+    #                 service=drive_service,
+    #                 task_names=all_task_names,
+    #                 drive_folder_name=DRIVE_FOLDER,
+    #                 sentinel_path=LOCAL_DOWNLOAD_PATH_SENTINEL,
+    #                 dem_path=LOCAL_DOWNLOAD_PATH_DEM,
+    #                 poll_interval=TASK_POLL_INTERVAL,
+    #                 max_wait_hours=MAX_WAIT_HOURS,
+    #                 delete_after=DELETE_AFTER_DOWNLOAD
+    #             )
+    #         else:
+    #             # Download files as they complete (progressive download)
+    #             print(f"\n  Starting progressive download (files download as tasks complete)...")
                 
-                download_results = wait_and_download_gee_tasks(
-                    service=drive_service,
-                    task_names=all_task_names,
-                    drive_folder_name=DRIVE_FOLDER,
-                    sentinel_path=LOCAL_DOWNLOAD_PATH_SENTINEL,
-                    dem_path=LOCAL_DOWNLOAD_PATH_DEM,
-                    poll_interval=TASK_POLL_INTERVAL,
-                    max_wait_hours=MAX_WAIT_HOURS,
-                    delete_after=DELETE_AFTER_DOWNLOAD
-                )
+    #             download_results = wait_and_download_gee_tasks(
+    #                 service=drive_service,
+    #                 task_names=all_task_names,
+    #                 drive_folder_name=DRIVE_FOLDER,
+    #                 sentinel_path=LOCAL_DOWNLOAD_PATH_SENTINEL,
+    #                 dem_path=LOCAL_DOWNLOAD_PATH_DEM,
+    #                 poll_interval=TASK_POLL_INTERVAL,
+    #                 max_wait_hours=MAX_WAIT_HOURS,
+    #                 delete_after=DELETE_AFTER_DOWNLOAD
+    #             )
             
-            # Download summary
-            print(f"\n{'='*70}")
-            print("DOWNLOAD COMPLETE")
-            print('='*70)
-            print(f"\n  📡 Sentinel files: {len(download_results.get('sentinel_files', []))}")
-            print(f"     Location: {LOCAL_DOWNLOAD_PATH_SENTINEL}")
-            print(f"\n  🗻 DEM files: {len(download_results.get('dem_files', []))}")
-            print(f"     Location: {LOCAL_DOWNLOAD_PATH_DEM}")
+    #         # Download summary
+    #         print(f"\n{'='*70}")
+    #         print("DOWNLOAD COMPLETE")
+    #         print('='*70)
+    #         print(f"\n  📡 Sentinel files: {len(download_results.get('sentinel_files', []))}")
+    #         print(f"     Location: {LOCAL_DOWNLOAD_PATH_SENTINEL}")
+    #         print(f"\n  🗻 DEM files: {len(download_results.get('dem_files', []))}")
+    #         print(f"     Location: {LOCAL_DOWNLOAD_PATH_DEM}")
             
-            if download_results.get('failed_tasks', 0) > 0:
-                print(f"\n  ⚠ Failed tasks: {download_results['failed_tasks']}")
+    #         if download_results.get('failed_tasks', 0) > 0:
+    #             print(f"\n  ⚠ Failed tasks: {download_results['failed_tasks']}")
             
-            # Update log with download info
-            with open(log_path, 'a') as f:
-                f.write(f"\n\n--- Download Results ---\n")
-                f.write(f"Sentinel files downloaded: {len(download_results.get('sentinel_files', []))}\n")
-                f.write(f"DEM files downloaded: {len(download_results.get('dem_files', []))}\n")
-                f.write(f"Failed GEE tasks: {download_results.get('failed_tasks', 0)}\n")
+    #         # Update log with download info
+    #         with open(log_path, 'a') as f:
+    #             f.write(f"\n\n--- Download Results ---\n")
+    #             f.write(f"Sentinel files downloaded: {len(download_results.get('sentinel_files', []))}\n")
+    #             f.write(f"DEM files downloaded: {len(download_results.get('dem_files', []))}\n")
+    #             f.write(f"Failed GEE tasks: {download_results.get('failed_tasks', 0)}\n")
                 
-        except Exception as e:
-            print(f"\n  ✗ Download error: {e}")
-            print(f"\n  You can manually download files from Google Drive:")
-            print(f"     Drive folder: {DRIVE_FOLDER}/")
-            print(f"     - Sentinel/")
-            print(f"     - DEM/")
+    #     except Exception as e:
+    #         print(f"\n  ✗ Download error: {e}")
+    #         print(f"\n  You can manually download files from Google Drive:")
+    #         print(f"     Drive folder: {DRIVE_FOLDER}/")
+    #         print(f"     - Sentinel/")
+    #         print(f"     - DEM/")
     
-    elif not AUTO_DOWNLOAD_FROM_DRIVE:
-        print(f"\n  Auto-download disabled. Download files manually from Google Drive:")
-        print(f"  Drive folder: {DRIVE_FOLDER}/")
-        print(f"    - Sentinel/")
-        print(f"    - DEM/")
+    # elif not AUTO_DOWNLOAD_FROM_DRIVE:
+    #     print(f"\n  Auto-download disabled. Download files manually from Google Drive:")
+    #     print(f"  Drive folder: {DRIVE_FOLDER}/")
+    #     print(f"    - Sentinel/")
+    #     print(f"    - DEM/")
     
     print(f"\n{'='*70}")
     print("   ALL DONE!")
     print("="*70)
     
-    return results
+    # return results
 
 
 if __name__ == "__main__":
