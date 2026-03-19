@@ -1,30 +1,26 @@
 import os
-import io
-import socket
 import pickle
 import requests
-from google.oauth2.credentials import Credentials
+import socket
 from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request, AuthorizedSession
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
-import googleapiclient.discovery
+from google.auth.transport.requests import Request
 
-# Force requests instead of httplib2
-import google.auth.transport.requests
-import google_auth_httplib2
-
-socket.setdefaulttimeout(300)  # 5 min timeout
+socket.setdefaulttimeout(300)
 
 # ── CONFIG ──────────────────────────────────────────────────────────
-TOKEN_FILE        = r"C:\Users\My Pc\Documents\river project aiq\drive_token.pickle"
-CREDENTIALS_FILE  = r"C:\Users\My Pc\Documents\river project aiq\client_secret.json"
-SENTINEL_LOCAL    = r"C:\Users\My Pc\Documents\river project aiq\Imagery_Output\Sentinel"
-DEM_LOCAL         = r"C:\Users\My Pc\Documents\river project aiq\Imagery_Output\DEM"
+TOKEN_FILE       = r"C:\Users\My Pc\Documents\river project aiq\drive_token.pickle"
+CREDENTIALS_FILE = r"C:\Users\My Pc\Documents\river project aiq\client_secret.json"
+SENTINEL_LOCAL   = r"C:\Users\My Pc\Documents\river project aiq\Imagery_Output\Sentinel"
+DEM_LOCAL        = r"C:\Users\My Pc\Documents\river project aiq\Imagery_Output\DEM"
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+
+# Exact folder names as shown in your Google Drive
+DRIVE_SENTINEL_FOLDER = "River_Imagery_Batch/Sentinel"
+DRIVE_DEM_FOLDER      = "River_Imagery_Batch/DEM"
 # ────────────────────────────────────────────────────────────────────
 
-def get_drive_service():
+
+def get_creds():
     creds = None
     if os.path.exists(TOKEN_FILE):
         with open(TOKEN_FILE, 'rb') as f:
@@ -37,70 +33,58 @@ def get_drive_service():
             creds = flow.run_local_server(port=0)
         with open(TOKEN_FILE, 'wb') as f:
             pickle.dump(creds, f)
+    return creds
 
-    # Use requests-based HTTP instead of httplib2
-    authed_session = AuthorizedSession(creds)
-    authed_session.request = lambda method, url, **kwargs: requests.request(
-        method, url, headers=kwargs.get('headers', {}),
-        data=kwargs.get('body', None), timeout=300
+
+def auth_headers(creds):
+    """Always return a fresh bearer token header."""
+    if creds.expired:
+        creds.refresh(Request())
+    return {"Authorization": f"Bearer {creds.token}"}
+
+
+def find_folder_id(creds, folder_name):
+    """Find Drive folder ID by exact name."""
+    print(f"  Searching for Drive folder: '{folder_name}' ...")
+    params = {
+        "q": f"name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+        "fields": "files(id, name)",
+        "pageSize": 10,
+    }
+    r = requests.get(
+        "https://www.googleapis.com/drive/v3/files",
+        headers=auth_headers(creds), params=params, timeout=60
     )
-
-    service = build('drive', 'v3', credentials=creds,
-                    requestBuilder=None)
-    return service, creds
-
-
-def download_file_direct(creds, file_id, file_name, local_path, size_mb):
-    """Download using requests directly - more reliable than googleapiclient."""
-    os.makedirs(os.path.dirname(local_path), exist_ok=True)
-
-    # Get fresh token
-    if creds.expired:
-        creds.refresh(Request())
-
-    url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media"
-    headers = {"Authorization": f"Bearer {creds.token}"}
-
-    with requests.get(url, headers=headers, stream=True, timeout=300) as r:
-        r.raise_for_status()
-        downloaded = 0
-        total = int(r.headers.get('content-length', size_mb * 1024 * 1024))
-
-        with open(local_path, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=8 * 1024 * 1024):  # 8MB chunks
-                if chunk:
-                    f.write(chunk)
-                    downloaded += len(chunk)
-                    pct = int(downloaded / total * 100) if total else 0
-                    print(f"  {pct}% ({downloaded/1024/1024:.1f} MB)", end='\r')
-
-    print(f"  ✓ Downloaded: {file_name}          ")
+    r.raise_for_status()
+    results = r.json().get('files', [])
+    if not results:
+        raise FileNotFoundError(
+            f"\n  ERROR: Folder not found in Drive: '{folder_name}'\n"
+            f"  → Open the folder in Drive, copy the ID from the URL,\n"
+            f"    and hard-code it in SENTINEL_FOLDER_ID / DEM_FOLDER_ID at the top."
+        )
+    folder_id = results[0]['id']
+    print(f"  ✓ Found → id: {folder_id}")
+    return folder_id
 
 
-def list_all_tif_files(creds):
-    """Search Drive for Ajay .tif files using requests directly."""
-    print("\nSearching Drive for .tif files...")
-
-    if creds.expired:
-        creds.refresh(Request())
-
+def list_files_in_folder(creds, folder_id):
+    """List all files (non-folders) directly inside a Drive folder."""
     files = []
     page_token = None
-
     while True:
         params = {
-            "q": "name contains 'Amba' and name contains '.tif' and trashed=false",
-            "spaces": "drive",
+            "q": (f"'{folder_id}' in parents "
+                  f"and mimeType != 'application/vnd.google-apps.folder' "
+                  f"and trashed = false"),
             "fields": "nextPageToken, files(id, name, size)",
             "pageSize": 100,
         }
         if page_token:
             params["pageToken"] = page_token
-
-        headers = {"Authorization": f"Bearer {creds.token}"}
         r = requests.get(
             "https://www.googleapis.com/drive/v3/files",
-            headers=headers, params=params, timeout=60
+            headers=auth_headers(creds), params=params, timeout=60
         )
         r.raise_for_status()
         data = r.json()
@@ -108,56 +92,106 @@ def list_all_tif_files(creds):
         page_token = data.get('nextPageToken')
         if not page_token:
             break
-
     return files
 
 
-def main():
-    print("=" * 50)
-    print("  DIRECT DRIVE DOWNLOAD")
-    print("=" * 50)
+def download_file(creds, file_id, file_name, local_path, drive_size_bytes):
+    """
+    Download with resume support.
+    - Local file exists and matches Drive size  → skip (already complete)
+    - Local file exists and is smaller          → resume from that byte offset
+    - Local file does not exist or is larger    → fresh download
+    """
+    os.makedirs(os.path.dirname(local_path), exist_ok=True)
 
-    service, creds = get_drive_service()
-    print("✓ Authenticated")
+    local_size = os.path.getsize(local_path) if os.path.exists(local_path) else 0
 
-    files = list_all_tif_files(creds)
-    print(f"Found {len(files)} .tif files in Drive\n")
+    # Already complete
+    if local_size == drive_size_bytes:
+        print(f"  ⏭  Already complete: {file_name}")
+        return "skipped"
+
+    # Decide resume offset
+    if 0 < local_size < drive_size_bytes:
+        resume_from = local_size
+        print(f"  ↻  Resuming from {local_size/1024/1024:.1f} MB: {file_name}")
+    else:
+        resume_from = 0
+        print(f"  ↓  Downloading: {file_name} ({drive_size_bytes/1024/1024:.1f} MB)")
+
+    url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media"
+    headers = auth_headers(creds)
+    if resume_from > 0:
+        headers["Range"] = f"bytes={resume_from}-"
+
+    with requests.get(url, headers=headers, stream=True, timeout=300) as r:
+        r.raise_for_status()
+        mode = 'ab' if resume_from > 0 else 'wb'
+        downloaded = resume_from
+        with open(local_path, mode) as f:
+            for chunk in r.iter_content(chunk_size=8 * 1024 * 1024):
+                if chunk:
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    pct = int(downloaded / drive_size_bytes * 100) if drive_size_bytes else 0
+                    print(f"  {pct:3d}%  ({downloaded/1024/1024:.1f} / {drive_size_bytes/1024/1024:.1f} MB)", end='\r')
+
+    print(f"  ✓  Done: {file_name}                          ")
+    return "downloaded"
+
+
+def process_folder(creds, drive_folder_name, local_dir):
+    print(f"\n{'='*55}")
+    print(f"  FOLDER : {drive_folder_name}")
+    print(f"  LOCAL  : {local_dir}")
+    print(f"{'='*55}")
+
+    folder_id = find_folder_id(creds, drive_folder_name)
+    files = list_files_in_folder(creds, folder_id)
+    print(f"  {len(files)} file(s) found in Drive folder\n")
+
+    counts = {"downloaded": 0, "skipped": 0, "failed": 0}
 
     for f in files:
-        size_mb = int(f.get('size', 0)) / (1024 * 1024)
-        print(f"  {f['name']} ({size_mb:.1f} MB)")
+        name             = f['name']
+        drive_size_bytes = int(f.get('size', 0))
+        local_path       = os.path.join(local_dir, name)
 
-    print()
-
-    for f in files:
-        name = f['name']
-        size_mb = int(f.get('size', 0)) / (1024 * 1024)
-
-        if '_dem' in name.lower():
-            local_file = os.path.join(DEM_LOCAL, name)
-        else:
-            local_file = os.path.join(SENTINEL_LOCAL, name)
-
-        if os.path.exists(local_file):
-            local_size = os.path.getsize(local_file) / (1024 * 1024)
-            if abs(local_size - size_mb) < 1:
-                print(f"⏭ Already exists: {name}")
-                continue
-            else:
-                print(f"⚠ Incomplete, re-downloading: {name} ({local_size:.1f} MB local vs {size_mb:.1f} MB drive)")
-
-        print(f"Downloading: {name} ({size_mb:.1f} MB)...")
         try:
-            download_file_direct(creds, f['id'], name, local_file, size_mb)
+            result = download_file(creds, f['id'], name, local_path, drive_size_bytes)
+            counts[result] += 1
         except Exception as e:
-            print(f"  ✗ Failed: {e}")
-            print(f"  → Run script again to retry")
+            print(f"\n  ✗  Failed: {name}")
+            print(f"     Reason: {e}")
+            print(f"     → Re-run the script to resume this file")
+            counts["failed"] += 1
 
-    print("\n" + "=" * 50)
-    print("DONE!")
-    print(f"Sentinel → {SENTINEL_LOCAL}")
-    print(f"DEM      → {DEM_LOCAL}")
-    print("=" * 50)
+    print(f"\n  Summary → ✓ downloaded: {counts['downloaded']}  "
+          f"⏭ skipped: {counts['skipped']}  "
+          f"✗ failed: {counts['failed']}")
+    return counts["failed"]
+
+
+def main():
+    print("=" * 55)
+    print("  DRIVE FOLDER DOWNLOADER  (with resume support)")
+    print("=" * 55)
+
+    creds = get_creds()
+    print("✓ Authenticated\n")
+
+    total_failed = 0
+    total_failed += process_folder(creds, DRIVE_SENTINEL_FOLDER, SENTINEL_LOCAL)
+    total_failed += process_folder(creds, DRIVE_DEM_FOLDER,      DEM_LOCAL)
+
+    print("\n" + "=" * 55)
+    if total_failed == 0:
+        print("  ALL DONE ✓")
+    else:
+        print(f"  DONE — {total_failed} file(s) failed. Re-run to resume them.")
+    print(f"  Sentinel → {SENTINEL_LOCAL}")
+    print(f"  DEM      → {DEM_LOCAL}")
+    print("=" * 55)
 
 
 if __name__ == "__main__":
