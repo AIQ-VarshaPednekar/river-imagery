@@ -64,8 +64,8 @@ BUFFER_DISTANCE = 10000  # 10 km buffer
 RESOLUTION = 10  # 10 meters
 
 # Date range for satellite imagery
-START_DATE = "2024-01-01"
-END_DATE = "2024-12-31"
+START_DATE = "2025-01-01"
+END_DATE = "2025-12-31"
 
 # Maximum cloud cover percentage
 MAX_CLOUD_COVER = 10
@@ -86,7 +86,7 @@ SKIP_EXISTING = True
 
 # Process specific rivers only (leave empty list [] to process all)
 # Example: SPECIFIC_RIVERS = ["Ambika", "Ganga", "Yamuna"]
-SPECIFIC_RIVERS = ["Ambika"]
+SPECIFIC_RIVERS = []
 
 # =============================================================================
 # GOOGLE DRIVE DOWNLOAD CONFIGURATION
