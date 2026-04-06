@@ -1,0 +1,22 @@
+{
+  "shapefile_path": "C:/Users/My Pc/Downloads/River_India_Final 2/River_India_Final.shp",
+  "output_base_folder": "C:/Users/My Pc/Documents/river project aiq/Imagery_Output",
+  "sentinel_subfolder": "Sentinel",
+  "dem_subfolder": "DEM",
+  "credentials_file": "C:/Users/My Pc/Documents/river project aiq/client_secret.json",
+  "token_file": "C:/Users/My Pc/Documents/river project aiq/drive_token.pickle",
+  "drive_sentinel_folder": "River_Imagery_Batch/Sentinel",
+  "drive_dem_folder": "River_Imagery_Batch/DEM",
+  "gee_project": "plucky-sight-423703-k5",
+  "buffer_distance": 10000,
+  "resolution": 10,
+  "max_cloud_cover": 10,
+  "drive_folder": "River_Imagery_Batch",
+  "max_concurrent_tasks": 100,
+  "start_date": "2025-01-01",
+  "end_date": "2025-12-31",
+  "skip_existing": true,
+  "selected_rivers": [
+    "Kumaradhara"
+  ]
+}

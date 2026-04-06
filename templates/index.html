@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>River Sentinel — Remote Sensing Pipeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:           #07090F;
+  --surface:      #0C1018;
+  --panel:        #101620;
+  --panel2:       #141C28;
+  --border:       #182234;
+  --border-hi:    #243850;
+  --teal:         #00C4A0;
+  --teal-dim:     #006B58;
+  --teal-glow:    rgba(0, 196, 160, 0.07);
+  --blue:         #3ABFF8;
+  --blue-dim:     #1E6080;
+  --text:         #C5D5E5;
+  --text-muted:   #587898;
+  --text-dim:     #2E4A64;
+  --green:        #22D472;
+  --green-dim:    rgba(34, 212, 114, 0.12);
+  --amber:        #F5A623;
+  --amber-dim:    rgba(245, 166, 35, 0.10);
+  --red:          #F05050;
+  --red-dim:      rgba(240, 80, 80, 0.10);
+  --purple:       #A78BFA;
+  --mono:         'IBM Plex Mono', 'Courier New', monospace;
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  font-family: var(--mono);
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+
+/* Subtle animated river-flow background */
+body::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 100% 60% at 10% 90%, rgba(0,196,160,.035) 0%, transparent 55%),
+    radial-gradient(ellipse 70%  50% at 90% 10%, rgba(58,191,248,.025) 0%, transparent 50%);
+}
+
+/* ─── SCROLLBARS ─────────────────────────────────────────────────────────── */
+::-webkit-scrollbar          { width: 4px; height: 4px; }
+::-webkit-scrollbar-track    { background: transparent; }
+::-webkit-scrollbar-thumb    { background: var(--border-hi); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--teal-dim); }
+
+/* ─── HEADER ─────────────────────────────────────────────────────────────── */
+header {
+  position: relative; z-index: 50;
+  height: 50px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px;
+  background: rgba(7,9,15,.96);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--border);
+}
+
+.logo {
+  display: flex; align-items: center; gap: 10px;
+  user-select: none;
+}
+
+.logo-mark {
+  width: 28px; height: 28px;
+  border: 1.5px solid var(--teal-dim);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 600; letter-spacing: .04em;
+  color: var(--teal);
+  position: relative;
+}
+
+.logo-mark::after {
+  content: '';
+  position: absolute; inset: 3px;
+  border: 1px solid var(--teal-dim);
+  opacity: .4;
+}
+
+.logo-text {
+  font-size: 12px; font-weight: 600; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--teal);
+}
+
+.logo-sep { color: var(--text-dim); font-size: 12px; margin: 0 2px; }
+
+.logo-sub {
+  font-size: 11px; color: var(--text-muted);
+  font-weight: 300;
+}
+
+.header-right {
+  display: flex; align-items: center; gap: 8px;
+}
+
+.badge {
+  font-size: 10px; letter-spacing: .06em;
+  padding: 3px 9px;
+  border: 1px solid var(--border-hi);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.badge span { color: var(--text-dim); }
+
+/* ─── BUTTONS ────────────────────────────────────────────────────────────── */
+.btn {
+  font-family: var(--mono);
+  font-size: 10px; font-weight: 500;
+  letter-spacing: .08em; text-transform: uppercase;
+  padding: 6px 14px;
+  border: 1px solid var(--border-hi);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all .12s;
+  white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 5px;
+  text-decoration: none;
+}
+.btn:hover:not(:disabled) {
+  border-color: var(--teal-dim); color: var(--teal);
+  background: var(--teal-glow);
+}
+.btn:disabled {
+  opacity: .35; cursor: not-allowed;
+}
+
+.btn-teal {
+  border-color: var(--teal-dim); color: var(--teal);
+  background: var(--teal-glow);
+}
+.btn-teal:hover:not(:disabled) { background: rgba(0,196,160,.14); }
+
+.btn-amber {
+  border-color: rgba(245,166,35,.4); color: var(--amber);
+  background: var(--amber-dim);
+}
+.btn-amber:hover:not(:disabled) { background: rgba(245,166,35,.18); }
+
+.btn-red {
+  border-color: rgba(240,80,80,.3); color: var(--red);
+  background: var(--red-dim);
+}
+.btn-red:hover:not(:disabled) { background: rgba(240,80,80,.18); }
+
+.btn-full { width: 100%; justify-content: center; }
+
+/* ─── LAYOUT ─────────────────────────────────────────────────────────────── */
+.app {
+  position: relative; z-index: 1;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  grid-template-rows: 1fr 200px;
+  height: calc(100vh - 50px);
+}
+
+/* ─── SIDEBAR ────────────────────────────────────────────────────────────── */
+.sidebar {
+  grid-row: 1 / 3;
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.sidebar-head {
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  flex-shrink: 0;
+}
+
+.sidebar-title {
+  font-size: 9px; font-weight: 500; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.search-wrap {
+  position: relative;
+}
+
+.search-icon {
+  position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+  color: var(--text-dim); font-size: 11px; pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  font-family: var(--mono); font-size: 11px;
+  padding: 7px 10px 7px 28px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text); outline: none;
+  transition: border-color .12s;
+}
+.search-input:focus { border-color: var(--teal-dim); }
+.search-input::placeholder { color: var(--text-dim); }
+
+.sidebar-meta {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 8px;
+}
+
+.sel-count { font-size: 10px; color: var(--teal); font-weight: 500; }
+
+.mini-btns { display: flex; gap: 10px; }
+
+.mini-btn {
+  font-family: var(--mono); background: none; border: none;
+  font-size: 9px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-dim); cursor: pointer;
+  transition: color .12s;
+}
+.mini-btn:hover { color: var(--teal); }
+
+/* River list */
+.river-list {
+  flex: 1; overflow-y: auto;
+  padding: 4px 0;
+}
+
+.river-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 5px 14px;
+  font-size: 11px; cursor: pointer;
+  transition: background .08s;
+  user-select: none;
+}
+.river-item:hover { background: rgba(0,196,160,.05); }
+.river-item.selected { color: var(--teal); }
+.river-item.hidden   { display: none; }
+
+.river-item input[type="checkbox"] {
+  width: 11px; height: 11px;
+  accent-color: var(--teal); flex-shrink: 0;
+  cursor: pointer;
+}
+
+.sidebar-foot {
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  font-size: 10px; color: var(--text-muted);
+  min-height: 44px;
+  flex-shrink: 0;
+}
+
+/* ─── CONTENT ────────────────────────────────────────────────────────────── */
+.content {
+  overflow-y: auto;
+  padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+
+/* ─── INFO BAR ────────────────────────────────────────────────────────────── */
+.info-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 9px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  font-size: 10px;
+}
+
+.tag {
+  font-size: 9px; letter-spacing: .06em; text-transform: uppercase;
+  padding: 2px 7px;
+  border: 1px solid var(--teal-dim);
+  color: var(--teal);
+  background: var(--teal-glow);
+}
+
+.info-sep { color: var(--border-hi); }
+
+.info-kv { color: var(--text-muted); }
+.info-kv b { color: var(--text); font-weight: 500; }
+
+.info-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+/* ─── STEP CARDS ─────────────────────────────────────────────────────────── */
+.steps-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.step-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 16px;
+  display: flex; flex-direction: column;
+  gap: 10px;
+  transition: border-color .2s, box-shadow .2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.step-card::before {
+  content: attr(data-n);
+  position: absolute; right: 14px; top: 12px;
+  font-size: 28px; font-weight: 600; letter-spacing: -.04em;
+  color: var(--border); pointer-events: none;
+  line-height: 1;
+}
+
+.step-card.s-active  { border-color: var(--teal-dim); box-shadow: 0 0 24px rgba(0,196,160,.04); }
+.step-card.s-done    { border-color: rgba(34,212,114,.25); }
+.step-card.s-error   { border-color: rgba(240,80,80,.25); }
+.step-card.s-waiting { border-color: rgba(245,166,35,.2); }
+
+.step-label {
+  font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text-dim); font-weight: 500;
+}
+
+.step-name {
+  font-size: 13px; font-weight: 600; letter-spacing: .02em;
+  color: var(--text);
+}
+
+.step-desc {
+  font-size: 10px; color: var(--text-muted); line-height: 1.6;
+  flex: 1;
+}
+
+/* Status pill */
+.status-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  width: fit-content;
+}
+
+.pill-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--text-dim); flex-shrink: 0;
+}
+
+.status-pill.p-idle    .pill-dot { background: var(--text-dim); }
+.status-pill.p-running .pill-dot { background: var(--teal); animation: blink 1s infinite; }
+.status-pill.p-done    .pill-dot { background: var(--green); }
+.status-pill.p-error   .pill-dot { background: var(--red); }
+.status-pill.p-waiting .pill-dot { background: var(--amber); }
+
+.status-pill.p-idle    { color: var(--text-dim); }
+.status-pill.p-running { color: var(--teal); border-color: var(--teal-dim); }
+.status-pill.p-done    { color: var(--green); border-color: rgba(34,212,114,.3); }
+.status-pill.p-error   { color: var(--red);   border-color: rgba(240,80,80,.3); }
+.status-pill.p-waiting { color: var(--amber); border-color: rgba(245,166,35,.3); }
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
+}
+
+.step-actions { display: flex; flex-direction: column; gap: 6px; }
+
+/* ─── GEE NOTICE ─────────────────────────────────────────────────────────── */
+.gee-notice {
+  display: none;
+  padding: 10px 14px;
+  background: var(--amber-dim);
+  border: 1px solid rgba(245,166,35,.25);
+  font-size: 11px; color: var(--amber);
+  line-height: 1.6;
+}
+.gee-notice a { color: var(--amber); text-decoration: underline dotted; }
+.gee-notice.visible { display: block; }
+
+/* ─── CONSOLE ────────────────────────────────────────────────────────────── */
+.console {
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+.console-bar {
+  height: 34px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.console-title {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--text-dim);
+  transition: background .3s;
+}
+.live-dot.on { background: var(--teal); animation: blink 1.4s infinite; }
+
+.console-meta {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 10px; color: var(--text-dim);
+}
+
+.console-body {
+  flex: 1; overflow-y: auto;
+  padding: 8px 14px;
+  font-size: 11px; line-height: 1.65;
+}
+
+.log { font-family: var(--mono); white-space: pre-wrap; word-break: break-all; }
+.log .ts { color: var(--text-dim); }
+.log.ok   { color: #4ADE80; }
+.log.err  { color: var(--red); }
+.log.warn { color: var(--amber); }
+.log.info { color: var(--teal); }
+.log.cmd  { color: var(--blue); }
+.log.dim  { color: var(--text-dim); }
+
+/* ─── CONFIG MODAL ───────────────────────────────────────────────────────── */
+.overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,.75);
+  display: none; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.overlay.open { display: flex; }
+
+.modal {
+  background: var(--panel2);
+  border: 1px solid var(--border-hi);
+  width: min(620px, 100%);
+  max-height: 85vh; overflow-y: auto;
+}
+
+.modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  position: sticky; top: 0; z-index: 1;
+}
+
+.modal-title {
+  font-size: 11px; font-weight: 500; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--teal);
+}
+
+.modal-close {
+  background: none; border: none;
+  font-size: 16px; color: var(--text-muted);
+  cursor: pointer; transition: color .12s;
+  font-family: var(--mono); line-height: 1;
+}
+.modal-close:hover { color: var(--text); }
+
+.modal-body { padding: 18px; }
+
+.cfg-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+}
+
+.cfg-field { display: flex; flex-direction: column; gap: 4px; }
+.cfg-field.full { grid-column: 1 / -1; }
+
+.cfg-label {
+  font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.cfg-input {
+  font-family: var(--mono); font-size: 11px;
+  padding: 7px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text); outline: none;
+  transition: border-color .12s;
+  width: 100%;
+}
+.cfg-input:focus { border-color: var(--teal-dim); }
+
+.cfg-hint { font-size: 9px; color: var(--text-dim); margin-top: 2px; }
+
+.modal-foot {
+  display: flex; gap: 8px; padding-top: 16px;
+  border-top: 1px solid var(--border); margin-top: 16px;
+}
+
+/* ─── SECTION LABEL ─────────────────────────────────────────────────────── */
+.sec-label {
+  font-size: 9px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--text-dim); margin-bottom: 10px;
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══════════════════════════════════════════════════════════════ -->
+<header>
+  <div class="logo">
+    <div class="logo-mark">RS</div>
+    <span class="logo-text">River Sentinel</span>
+    <span class="logo-sep">/</span>
+    <span class="logo-sub">Remote Sensing Pipeline</span>
+  </div>
+  <div class="header-right">
+    <div class="badge"><span>Period</span> &nbsp;2025-01-01 → 2025-12-31</div>
+    <button class="btn" onclick="openCfg()">⚙&nbsp; Config</button>
+    <button class="btn btn-red" id="resetBtn" onclick="doReset()" style="display:none">↺&nbsp; Reset</button>
+  </div>
+</header>
+
+<!-- ═══ APP SHELL ═════════════════════════════════════════════════════════════ -->
+<div class="app">
+
+  <!-- ── SIDEBAR ─────────────────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="sidebar-title">River Selection</div>
+      <div class="search-wrap">
+        <span class="search-icon">⌕</span>
+        <input class="search-input" type="text" id="searchQ"
+               placeholder="Search 150+ rivers…" oninput="filterList(this.value)">
+      </div>
+      <div class="sidebar-meta">
+        <span class="sel-count" id="selCount">0 selected</span>
+        <div class="mini-btns">
+          <button class="mini-btn" onclick="selectAll()">All</button>
+          <button class="mini-btn" onclick="clearAll()">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="river-list" id="riverList">
+      <div style="padding:20px 14px; font-size:11px; color:var(--text-dim)">Loading rivers…</div>
+    </div>
+
+    <div class="sidebar-foot" id="selPreview">
+      <span style="color:var(--text-dim)">No rivers selected</span>
+    </div>
+  </aside>
+
+  <!-- ── CONTENT ─────────────────────────────────────────────────────────── -->
+  <div class="content">
+
+    <!-- Info bar -->
+    <div class="info-bar">
+      <span class="tag">Sentinel-2 SR</span>
+      <span class="tag">SRTM DEM</span>
+      <span class="info-sep">|</span>
+      <span class="info-kv">Buffer <b id="ib-buf">10,000 m</b></span>
+      <span class="info-sep">·</span>
+      <span class="info-kv">Res <b id="ib-res">10 m</b></span>
+      <span class="info-sep">·</span>
+      <span class="info-kv">Cloud ≤ <b id="ib-cloud">10%</b></span>
+      <span class="info-sep">·</span>
+      <span class="info-kv">EPSG <b>4326</b></span>
+      <div class="info-right">
+        <span id="runTimer" style="font-size:10px; color:var(--text-dim)"></span>
+      </div>
+    </div>
+
+    <!-- Step cards -->
+    <div>
+      <div class="sec-label">Pipeline</div>
+      <div class="steps-row">
+
+        <!-- ── Step 1 ── -->
+        <div class="step-card" id="card-1" data-n="01">
+          <div class="step-label">Step 01</div>
+          <div class="step-name">GEE Export</div>
+          <div class="step-desc">
+            Authenticates GEE, loads river geometries from shapefile, applies
+            buffer, and submits Sentinel-2 + DEM export tasks to Google Drive.
+          </div>
+          <div class="status-pill p-idle" id="pill-1">
+            <span class="pill-dot"></span>
+            <span id="pill-txt-1">Idle</span>
+          </div>
+          <div class="step-actions">
+            <button class="btn btn-teal btn-full" id="btn-1" onclick="step1()">
+              ▶ &nbsp;Start Export
+            </button>
+          </div>
+        </div>
+
+        <!-- ── Step 2 ── -->
+        <div class="step-card" id="card-2" data-n="02">
+          <div class="step-label">Step 02</div>
+          <div class="step-name">Drive Download</div>
+          <div class="step-desc">
+            Downloads completed GEE files from Google Drive to local machine.
+            Check GEE Tasks page first — all tasks must be <b style="color:var(--green)">COMPLETED</b>.
+          </div>
+          <div class="status-pill p-idle" id="pill-2">
+            <span class="pill-dot"></span>
+            <span id="pill-txt-2">Waiting</span>
+          </div>
+          <div class="step-actions">
+            <a href="https://code.earthengine.google.com/tasks" target="_blank"
+               class="btn btn-amber btn-full">
+              ↗ &nbsp;Check GEE Tasks
+            </a>
+            <button class="btn btn-teal btn-full" id="btn-2" onclick="step2()">
+              ▶ &nbsp;Start Download
+            </button>
+          </div>
+        </div>
+
+        <!-- ── Step 3 ── -->
+        <div class="step-card" id="card-3" data-n="03">
+          <div class="step-label">Step 03</div>
+          <div class="step-name">Merge Tiles</div>
+          <div class="step-desc">
+            Groups raw GeoTIFF tiles by river name and merges them into a single
+            tiled, LZW-compressed GeoTIFF per river. Output ready for QGIS.
+          </div>
+          <div class="status-pill p-idle" id="pill-3">
+            <span class="pill-dot"></span>
+            <span id="pill-txt-3">Waiting</span>
+          </div>
+          <div class="step-actions">
+            <button class="btn btn-teal btn-full" id="btn-3" onclick="step3()" disabled>
+              ▶ &nbsp;Start Merge
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- GEE reminder (shown after step 1 completes) -->
+    <div class="gee-notice" id="geeNotice">
+      ⚠ &nbsp;GEE tasks submitted. Open
+      <a href="https://code.earthengine.google.com/tasks" target="_blank">
+        code.earthengine.google.com/tasks
+      </a>
+      and wait until all tasks show <strong>COMPLETED</strong>.
+      Then click <strong>Start Download</strong> above.
+    </div>
+
+  </div>
+
+  <!-- ── CONSOLE ─────────────────────────────────────────────────────────── -->
+  <div class="console">
+    <div class="console-bar">
+      <div class="console-title">
+        <span class="live-dot" id="liveDot"></span>
+        Console Output
+      </div>
+      <div class="console-meta">
+        <span id="lineCount">0 lines</span>
+        <button class="btn" style="padding:3px 8px; font-size:9px" onclick="clearCon()">Clear</button>
+      </div>
+    </div>
+    <div class="console-body" id="con">
+      <div class="log dim">// Ready. Select rivers above and start the pipeline.</div>
+    </div>
+  </div>
+
+</div><!-- /.app -->
+
+<!-- ═══ CONFIG MODAL ══════════════════════════════════════════════════════════ -->
+<div class="overlay" id="cfgModal">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">⚙ &nbsp;Configuration</span>
+      <button class="modal-close" onclick="closeCfg()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="cfg-grid">
+
+        <div class="cfg-field full">
+          <label class="cfg-label">Shapefile Path (.shp)</label>
+          <input class="cfg-input" id="c-shapefile_path"
+                 placeholder="C:\path\to\River_India_Final.shp">
+          <div class="cfg-hint">Used to load the 150-river list for selection</div>
+        </div>
+
+        <div class="cfg-field full">
+          <label class="cfg-label">Output Base Folder</label>
+          <input class="cfg-input" id="c-output_base_folder"
+                 placeholder="C:\path\to\Imagery_Output">
+          <div class="cfg-hint">Sentinel/ and DEM/ subfolders created inside</div>
+        </div>
+
+        <div class="cfg-field full">
+          <label class="cfg-label">Google OAuth Credentials (client_secret.json)</label>
+          <input class="cfg-input" id="c-credentials_file"
+                 placeholder="C:\path\to\client_secret.json">
+        </div>
+
+        <div class="cfg-field full">
+          <label class="cfg-label">OAuth Token File (drive_token.pickle)</label>
+          <input class="cfg-input" id="c-token_file"
+                 placeholder="C:\path\to\drive_token.pickle">
+        </div>
+
+        <div class="cfg-field">
+          <label class="cfg-label">GEE Project ID</label>
+          <input class="cfg-input" id="c-gee_project"
+                 placeholder="plucky-sight-423703-k5">
+        </div>
+
+        <div class="cfg-field">
+          <label class="cfg-label">Drive Folder Name</label>
+          <input class="cfg-input" id="c-drive_folder"
+                 placeholder="River_Imagery_Batch">
+        </div>
+
+        <div class="cfg-field">
+          <label class="cfg-label">Drive Sentinel Path</label>
+          <input class="cfg-input" id="c-drive_sentinel_folder"
+                 placeholder="River_Imagery_Batch/Sentinel">
+        </div>
+
+        <div class="cfg-field">
+          <label class="cfg-label">Drive DEM Path</label>
+          <input class="cfg-input" id="c-drive_dem_folder"
+                 placeholder="River_Imagery_Batch/DEM">
+        </div>
+
+        <div class="cfg-field">
+          <label class="cfg-label">Buffer Distance (m)</label>
+          <input class="cfg-input" id="c-buffer_distance" type="number" placeholder="10000">
+        </div>
+
+        <div class="cfg-field">
+          <label class="cfg-label">Resolution (m)</label>
+          <input class="cfg-input" id="c-resolution" type="number" placeholder="10">
+        </div>
+
+        <div class="cfg-field">
+          <label class="cfg-label">Max Cloud Cover (%)</label>
+          <input class="cfg-input" id="c-max_cloud_cover" type="number" placeholder="10">
+        </div>
+
+        <div class="cfg-field">
+          <label class="cfg-label">Max Concurrent Tasks</label>
+          <input class="cfg-input" id="c-max_concurrent_tasks" type="number" placeholder="100">
+        </div>
+
+      </div>
+
+      <div class="modal-foot">
+        <button class="btn btn-teal" onclick="saveCfg()">✓ &nbsp;Save &amp; Apply</button>
+        <button class="btn" onclick="closeCfg()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══ STATE ════════════════════════════════════════════════════════════════════
+const selected = new Set();
+let allRivers  = [];
+let pipeStatus = 'idle';
+let sseConn    = null;
+let logLines   = 0;
+let timerID    = null;
+let startedAt  = null;
+
+const NUM_FIELDS = ['buffer_distance','resolution','max_cloud_cover','max_concurrent_tasks'];
+
+// ═══ INIT ═════════════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  loadRivers();
+  loadCfgValues();
+  connectSSE();
+  pollStatus();
+});
+
+// ═══ RIVERS ══════════════════════════════════════════════════════════════════
+async function loadRivers() {
+  try {
+    const r = await fetch('/api/rivers');
+    const d = await r.json();
+    allRivers = d.rivers;
+    renderRivers(allRivers);
+    if (d.source === 'fallback') {
+      appendLog('// Using fallback river list. Set Shapefile Path in Config for the full list.', 'dim');
+    } else {
+      appendLog(`// Loaded ${d.count} rivers from shapefile.`, 'dim');
+    }
+  } catch (e) {
+    document.getElementById('riverList').innerHTML =
+      `<div style="padding:16px 14px;font-size:11px;color:var(--red)">Failed to load rivers: ${e}</div>`;
+  }
+}
+
+function renderRivers(list) {
+  document.getElementById('riverList').innerHTML = list.map(r => `
+    <label class="river-item${selected.has(r) ? ' selected' : ''}" data-r="${r}">
+      <input type="checkbox" ${selected.has(r) ? 'checked' : ''}
+             onchange="toggleRiver('${r}', this.checked)">
+      ${r}
+    </label>`).join('');
+}
+
+function filterList(q) {
+  const lq = q.toLowerCase();
+  document.querySelectorAll('.river-item').forEach(el => {
+    el.classList.toggle('hidden', !el.dataset.r.toLowerCase().includes(lq));
+  });
+}
+
+function toggleRiver(name, on) {
+  on ? selected.add(name) : selected.delete(name);
+  const el = document.querySelector(`.river-item[data-r="${name}"]`);
+  if (el) el.classList.toggle('selected', on);
+  updateSelUI();
+}
+
+function selectAll() {
+  document.querySelectorAll('.river-item:not(.hidden)').forEach(el => {
+    selected.add(el.dataset.r);
+    el.querySelector('input').checked = true;
+    el.classList.add('selected');
+  });
+  updateSelUI();
+}
+
+function clearAll() {
+  selected.clear();
+  document.querySelectorAll('.river-item').forEach(el => {
+    el.querySelector('input').checked = false;
+    el.classList.remove('selected');
+  });
+  updateSelUI();
+}
+
+function updateSelUI() {
+  const n = selected.size;
+  document.getElementById('selCount').textContent = `${n} selected`;
+  const preview = document.getElementById('selPreview');
+  if (!n) {
+    preview.innerHTML = `<span style="color:var(--text-dim)">No rivers selected</span>`;
+    return;
+  }
+  const arr = [...selected];
+  const shown = arr.slice(0,4).join(', ');
+  const more  = arr.length > 4 ? ` <span style="color:var(--text-dim)">+${arr.length-4} more</span>` : '';
+  preview.innerHTML = `<span style="color:var(--teal)">${shown}</span>${more}`;
+}
+
+// ═══ PIPELINE ════════════════════════════════════════════════════════════════
+async function step1() {
+  if (!selected.size) { appendLog('✗ No rivers selected.', 'err'); return; }
+  setBtn('btn-1', true);
+  try {
+    const r = await fetch('/api/pipeline/step1', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ rivers: [...selected] })
+    });
+    if (!r.ok) { const e = await r.json(); appendLog(`✗ ${e.detail}`, 'err'); setBtn('btn-1', false); }
+  } catch(e) { appendLog(`✗ ${e}`, 'err'); setBtn('btn-1', false); }
+}
+
+async function step2() {
+  setBtn('btn-2', true);
+  try {
+    const r = await fetch('/api/pipeline/step2', { method: 'POST' });
+    if (!r.ok) { const e = await r.json(); appendLog(`✗ ${e.detail}`, 'err'); setBtn('btn-2', false); }
+  } catch(e) { appendLog(`✗ ${e}`, 'err'); setBtn('btn-2', false); }
+}
+
+async function step3() {
+  setBtn('btn-3', true);
+  try {
+    const r = await fetch('/api/pipeline/step3', { method: 'POST' });
+    if (!r.ok) { const e = await r.json(); appendLog(`✗ ${e.detail}`, 'err'); setBtn('btn-3', false); }
+  } catch(e) { appendLog(`✗ ${e}`, 'err'); setBtn('btn-3', false); }
+}
+
+async function doReset() {
+  if (!confirm('Reset the pipeline? Any running process will be stopped.')) return;
+  await fetch('/api/pipeline/reset', { method: 'POST' });
+  clearCon();
+  stopTimer();
+  location.reload();
+}
+
+function setBtn(id, disabled) {
+  const el = document.getElementById(id);
+  if (el) el.disabled = disabled;
+}
+
+// ═══ STATUS POLLING ═══════════════════════════════════════════════════════════
+function pollStatus() {
+  setInterval(async () => {
+    try {
+      const r = await fetch('/api/status');
+      const d = await r.json();
+      applyStatus(d.status, d.current_step, d.started_at);
+    } catch {}
+  }, 2500);
+}
+
+function applyStatus(status, step, t) {
+  pipeStatus = status;
+  const running = status.startsWith('running_');
+
+  // Reset btn
+  document.getElementById('resetBtn').style.display =
+    (status !== 'idle') ? 'inline-flex' : 'none';
+
+  // GEE notice
+  document.getElementById('geeNotice').classList.toggle('visible', status === 'done_step1');
+
+  // Live dot
+  document.getElementById('liveDot').classList.toggle('on', running);
+
+  // Timer
+  if (running && !timerID) {
+    startedAt = t ? new Date(t) : new Date();
+    timerID = setInterval(updateTimer, 1000);
+  } else if (!running && timerID) {
+    stopTimer();
+  }
+
+  // Card + pill states
+  updateCard(1, status);
+  updateCard(2, status);
+  updateCard(3, status);
+
+  // Button enable states
+  document.getElementById('btn-1').disabled = !['idle','error'].includes(status) || running;
+  document.getElementById('btn-2').disabled = ['running_step2'].includes(status);
+  document.getElementById('btn-3').disabled = !['done_step2'].includes(status);
+}
+
+const STEP_MAP = {
+  1: {
+    idle:'idle', running_step1:'running', done_step1:'done',
+    running_step2:'done', done_step2:'done', running_step3:'done', done:'done', error:'error'
+  },
+  2: {
+    idle:'idle', running_step1:'idle', done_step1:'waiting',
+    running_step2:'running', done_step2:'done', running_step3:'done', done:'done', error:'error'
+  },
+  3: {
+    idle:'idle', running_step1:'idle', done_step1:'idle', running_step2:'idle',
+    done_step2:'waiting', running_step3:'running', done:'done', error:'error'
+  }
+};
+
+const PILL_LABELS = {
+  idle:'Idle', waiting:'Ready to start', running:'Running…',
+  done:'Done ✓', error:'Error'
+};
+
+function updateCard(n, status) {
+  const state = STEP_MAP[n][status] || 'idle';
+  const card  = document.getElementById(`card-${n}`);
+  const pill  = document.getElementById(`pill-${n}`);
+  const ptxt  = document.getElementById(`pill-txt-${n}`);
+
+  card.className = 'step-card';
+  if (state === 'running') card.classList.add('s-active');
+  else if (state === 'done')    card.classList.add('s-done');
+  else if (state === 'error')   card.classList.add('s-error');
+  else if (state === 'waiting') card.classList.add('s-waiting');
+
+  pill.className = `status-pill p-${state}`;
+  ptxt.textContent = PILL_LABELS[state] || state;
+}
+
+// ═══ TIMER ════════════════════════════════════════════════════════════════════
+function updateTimer() {
+  if (!startedAt) return;
+  const s = Math.floor((Date.now() - startedAt) / 1000);
+  const m = Math.floor(s / 60), ss = s % 60;
+  document.getElementById('runTimer').textContent =
+    `Runtime ${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+}
+
+function stopTimer() {
+  if (timerID) { clearInterval(timerID); timerID = null; }
+}
+
+// ═══ SSE ══════════════════════════════════════════════════════════════════════
+function connectSSE() {
+  if (sseConn) sseConn.close();
+  sseConn = new EventSource('/api/logs/stream');
+
+  sseConn.onmessage = ev => {
+    try {
+      const d = JSON.parse(ev.data);
+      if (d.type === 'log')    appendLog(`[${d.ts}] ${d.msg}`);
+      else if (d.type === 'status') applyStatus(d.status, d.step, null);
+    } catch {}
+  };
+
+  sseConn.onerror = () => setTimeout(connectSSE, 3000);
+}
+
+// ═══ CONSOLE ══════════════════════════════════════════════════════════════════
+function appendLog(msg, forceClass = '') {
+  const con = document.getElementById('con');
+  const div = document.createElement('div');
+  div.className = 'log ' + (forceClass || classifyLog(msg));
+  div.textContent = msg;
+  con.appendChild(div);
+  con.scrollTop = con.scrollHeight;
+  logLines++;
+  document.getElementById('lineCount').textContent = `${logLines} lines`;
+}
+
+function classifyLog(m) {
+  if (/✓|Done|complete|✅/i.test(m))   return 'ok';
+  if (/✗|Error|failed|exit code [^0]/i.test(m)) return 'err';
+  if (/⚠|Warning|warn/i.test(m))       return 'warn';
+  if (/▶|Step|→|🎉/i.test(m))          return 'info';
+  if (/^\[.*\] \$/.test(m))            return 'cmd';
+  return '';
+}
+
+function clearCon() {
+  document.getElementById('con').innerHTML = '';
+  logLines = 0;
+  document.getElementById('lineCount').textContent = '0 lines';
+}
+
+// ═══ CONFIG ═══════════════════════════════════════════════════════════════════
+async function loadCfgValues() {
+  try {
+    const r = await fetch('/api/config');
+    const cfg = await r.json();
+
+    Object.keys(cfg).forEach(k => {
+      const el = document.getElementById(`c-${k}`);
+      if (el && cfg[k] !== null && cfg[k] !== undefined) el.value = cfg[k];
+    });
+
+    // Update info bar
+    if (cfg.buffer_distance)
+      document.getElementById('ib-buf').textContent = Number(cfg.buffer_distance).toLocaleString() + ' m';
+    if (cfg.resolution)
+      document.getElementById('ib-res').textContent = cfg.resolution + ' m';
+    if (cfg.max_cloud_cover)
+      document.getElementById('ib-cloud').textContent = cfg.max_cloud_cover + '%';
+  } catch {}
+}
+
+async function saveCfg() {
+  const keys = [
+    'shapefile_path','output_base_folder','credentials_file','token_file',
+    'gee_project','drive_folder','drive_sentinel_folder','drive_dem_folder',
+    'buffer_distance','resolution','max_cloud_cover','max_concurrent_tasks'
+  ];
+  const cfg = {};
+  keys.forEach(k => {
+    const el = document.getElementById(`c-${k}`);
+    if (!el) return;
+    cfg[k] = NUM_FIELDS.includes(k) ? (parseInt(el.value) || 0) : el.value.trim();
+  });
+
+  try {
+    await fetch('/api/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(cfg)
+    });
+    closeCfg();
+    loadCfgValues();
+    loadRivers();   // refresh river list if shapefile changed
+    appendLog('✓ Config saved and applied.', 'ok');
+  } catch (e) {
+    appendLog(`✗ Config save failed: ${e}`, 'err');
+  }
+}
+
+function openCfg()  { document.getElementById('cfgModal').classList.add('open'); }
+function closeCfg() { document.getElementById('cfgModal').classList.remove('open'); }
+
+// Close modal on overlay click
+document.getElementById('cfgModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeCfg();
+});
+</script>
+</body>
+</html>
