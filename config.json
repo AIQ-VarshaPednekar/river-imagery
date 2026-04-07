@@ -18,5 +18,11 @@
   "skip_existing": true,
   "selected_rivers": [
     "Kumaradhara"
+  ],
+  "export_target": "gcs",
+  "selected_bands": [
+    "B2",
+    "B3",
+    "B4"
   ]
 }

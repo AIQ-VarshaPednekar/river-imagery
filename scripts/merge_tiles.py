@@ -22,8 +22,9 @@ from rasterio.warp import calculate_default_transform, reproject, Resampling as 
 TARGET_CRS = "EPSG:4326"  # ← change to your river's UTM zone (check your tiles)
 NODATA_VAL = -9999         # ← safer than 0 (Sentinel-2 water pixels can be 0)
 
-input_folder = r"C:\Users\My Pc\Documents\river project aiq\Imagery_Output\Sentinel"
-output_folder = r"C:\Users\My Pc\Documents\river project aiq\Imagery_Output\Sentinel_Merged"
+# Overridden at runtime by run_step3.py from config.json
+input_folder  = ""
+output_folder = ""
 
 os.makedirs(output_folder, exist_ok=True)
 
@@ -201,35 +202,6 @@ for river_name, tiles in river_tiles.items():
     except Exception as e:
         print(f"\n  ✗ Merge failed: {e}")
 
-
-# ── Build statistics + overviews (makes QGIS display correctly) ──────────────
-
-# print("\nBuilding statistics and overviews for QGIS...")
-# for river_name in river_tiles:
-#     output_file = os.path.join(output_folder, f"{river_name}_merged.tif")
-#     if not os.path.exists(output_file):
-#         continue
-
-#     print(f"  Stats + overviews: {river_name}...")
-#     try:
-#         ds = gdal.Open(output_file, gdal.GA_Update)
-#         if ds is None:
-#             print(f"  ⚠ Could not open {river_name} with GDAL, skipping.")
-#             continue
-
-#         # Compute per-band statistics (writes .aux.xml sidecar used by QGIS)
-#         for i in range(1, ds.RasterCount + 1):
-#             ds.GetRasterBand(i).ComputeStatistics(False)
-
-#         # Build overview pyramids (makes QGIS render fast at any zoom level)
-#         ds.BuildOverviews("NEAREST", [2, 4, 8, 16])
-
-#         ds = None  # flush + close
-#         print(f"  ✅ Done: {river_name}")
-#     except Exception as e:
-#         print(f"  ⚠ Stats/overviews failed for {river_name}: {e}")
-
-# print("Statistics and overviews done!")
 
 print("\n==============================")
 print("All rivers processed!")

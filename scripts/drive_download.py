@@ -7,17 +7,15 @@ from google.auth.transport.requests import Request
 
 socket.setdefaulttimeout(300)
 
-# ── CONFIG ──────────────────────────────────────────────────────────
-TOKEN_FILE       = r"C:\Users\My Pc\Documents\river project aiq\drive_token.pickle"
-CREDENTIALS_FILE = r"C:\Users\My Pc\Documents\river project aiq\client_secret.json"
-SENTINEL_LOCAL   = r"C:\Users\My Pc\Documents\river project aiq\Imagery_Output\Sentinel"
-DEM_LOCAL        = r"C:\Users\My Pc\Documents\river project aiq\Imagery_Output\DEM"
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 
-# Exact folder names as shown in your Google Drive
+# Overridden at runtime by run_step2.py from config.json
+TOKEN_FILE            = ""
+CREDENTIALS_FILE      = ""
+SENTINEL_LOCAL        = ""
+DEM_LOCAL             = ""
 DRIVE_SENTINEL_FOLDER = "River_Imagery_Batch/Sentinel"
 DRIVE_DEM_FOLDER      = "River_Imagery_Batch/DEM"
-# ────────────────────────────────────────────────────────────────────
 
 
 def get_creds():
