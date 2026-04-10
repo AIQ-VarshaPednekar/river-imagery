@@ -848,6 +848,139 @@
     .band-cb input[type="checkbox"] {
       display: none;
     }
+
+    /* ─── CLOUD VM MERGE SECTION ─────────────────────────────────────────────── */
+    .vm-section {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .vm-section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .vm-title-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .vm-icon {
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .vm-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .vm-subtitle {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .vm-status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 10px;
+    }
+
+    .vm-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 9px;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border: 1px solid var(--border-hi);
+      color: var(--text-dim);
+    }
+
+    .vm-pill.vm-idle    { color: var(--text-dim);  border-color: var(--border-hi); }
+    .vm-pill.vm-running { color: var(--teal);       border-color: var(--teal-dim);  background: var(--teal-glow); }
+    .vm-pill.vm-done    { color: var(--green);      border-color: rgba(34,212,114,.3); }
+    .vm-pill.vm-error   { color: var(--red);        border-color: rgba(240,80,80,.3); }
+
+    .vm-pill-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: currentColor;
+      flex-shrink: 0;
+    }
+
+    .vm-pill.vm-running .vm-pill-dot { animation: blink 1s infinite; }
+
+    .vm-body {
+      display: flex;
+      align-items: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .vm-desc {
+      flex: 1;
+      min-width: 200px;
+      font-size: 10px;
+      color: var(--text-muted);
+      line-height: 1.65;
+    }
+
+    .vm-desc b { color: var(--text); font-weight: 500; }
+    .vm-desc code {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--teal);
+      background: var(--teal-glow);
+      padding: 1px 5px;
+      border: 1px solid var(--teal-dim);
+    }
+
+    .vm-actions {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .vm-log-strip {
+      font-size: 10px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      min-height: 28px;
+      max-height: 28px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      display: none;
+    }
+
+    .vm-log-strip.visible { display: block; }
+
+    .btn-purple {
+      border-color: rgba(167,139,250,.4);
+      color: var(--purple);
+      background: rgba(167,139,250,.07);
+    }
+
+    .btn-purple:hover:not(:disabled) {
+      background: rgba(167,139,250,.15);
+    }
   </style>
 </head>
 
@@ -967,10 +1100,10 @@
           <!-- ── Step 3 ── -->
           <div class="step-card" id="card-3" data-n="03">
             <div class="step-label">Step 03</div>
-            <div class="step-name">Merge Tiles</div>
+            <div class="step-name">Merge Tiles <span style="font-size:9px;color:var(--text-dim)">(local)</span></div>
             <div class="step-desc">
-              Groups raw GeoTIFF tiles by river name and merges them into a single
-              tiled, LZW-compressed GeoTIFF per river. Output ready for QGIS.
+              Merges downloaded GeoTIFF tiles into a single file per river locally.
+              Use this after Step 2 (Drive download).
             </div>
             <div class="status-pill p-idle" id="pill-3">
               <span class="pill-dot"></span>
@@ -978,10 +1111,14 @@
             </div>
             <div class="step-actions">
               <button class="btn btn-teal btn-full" id="btn-3" onclick="step3()" disabled>
-                ▶ &nbsp;Start Merge
+                ▶ &nbsp;Start Local Merge
               </button>
             </div>
           </div>
+
+        </div>
+
+        </div><!-- /.steps-row -->
 
         </div>
       </div>
@@ -994,6 +1131,50 @@
         </a>
         and wait until all tasks show <strong>COMPLETED</strong>.
         Then click <strong>Start Download</strong> above.
+      </div>
+
+      <!-- ── CLOUD VM MERGE ─────────────────────────────────────────────────── -->
+      <div>
+        <div class="sec-label">Cloud Merge (GCS → GCP VM → GCS)</div>
+        <div class="vm-section">
+          <div class="vm-section-head">
+            <div class="vm-title-group">
+              <span class="vm-icon">☁</span>
+              <div>
+                <div class="vm-title">GCP VM Tile Merger</div>
+                <div class="vm-subtitle">Spins up a VM, merges tiles in bucket, uploads result, self-deletes</div>
+              </div>
+            </div>
+            <div class="vm-status-bar">
+              <div class="vm-pill vm-idle" id="vmPill">
+                <span class="vm-pill-dot"></span>
+                <span id="vmPillTxt">No VM</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="vm-body">
+            <div class="vm-desc">
+              Reads tiles from <code>gs://aiq-river-imagery/Sentinel/</code>,
+              groups by river name, skips <b>already-merged</b> rivers, merges
+              remaining tiles using windowed chunked I/O, and uploads
+              <code>RiverName_merged.tif</code> to <code>Sentinel_Merged/</code>.
+              The VM (<b>n2-highmem-4</b>, 32 GB RAM) then <b>self-deletes</b>.
+              Uses your GCP account credentials via <code>gcloud</code>.
+            </div>
+            <div class="vm-actions">
+              <button class="btn btn-red" id="vmKillBtn"
+                onclick="killVM()" style="display:none">
+                ✕&nbsp; Kill VM
+              </button>
+              <button class="btn btn-purple" id="vmLaunchBtn" onclick="launchVM()">
+                ☁&nbsp; Launch &amp; Merge
+              </button>
+            </div>
+          </div>
+
+          <div class="vm-log-strip" id="vmLogStrip">Waiting for VM…</div>
+        </div>
       </div>
 
     </div>
@@ -1527,10 +1708,128 @@
     function openCfg() { document.getElementById('cfgModal').classList.add('open'); }
     function closeCfg() { document.getElementById('cfgModal').classList.remove('open'); }
 
-    // Close modal on overlay click
-    document.getElementById('cfgModal').addEventListener('click', e => {
-      if (e.target === e.currentTarget) closeCfg();
-    });
+    // ═══ CLOUD VM MERGE ══════════════════════════════════════════════════════════
+
+    let vmPollTimer = null;
+
+    async function launchVM() {
+      const rivers = [...selected];   // use currently selected rivers (empty = all)
+      const btn = document.getElementById('vmLaunchBtn');
+      btn.disabled = true;
+
+      appendLog('☁  Launching GCP merge VM…', 'info');
+
+      try {
+        const r = await fetch('/api/vm/launch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rivers })
+        });
+        const d = await r.json();
+        if (!r.ok) {
+          appendLog(`✗ VM launch failed: ${d.detail}`, 'err');
+          btn.disabled = false;
+          return;
+        }
+        appendLog(`✓ VM creation request sent (${d.vm_name} / ${d.zone})`, 'ok');
+        appendLog('  Monitor: GCP Console → Compute Engine → VM Instances', 'info');
+        setVMPill('running', 'Provisioning…');
+        document.getElementById('vmLogStrip').classList.add('visible');
+        document.getElementById('vmKillBtn').style.display = 'inline-flex';
+        startVMPoll();
+      } catch (e) {
+        appendLog(`✗ ${e}`, 'err');
+        btn.disabled = false;
+      }
+    }
+
+    async function killVM() {
+      if (!confirm('Force-delete the merge VM? The merge in progress will be lost.')) return;
+      document.getElementById('vmKillBtn').disabled = true;
+      try {
+        const r = await fetch('/api/vm/kill', { method: 'DELETE' });
+        const d = await r.json();
+        if (r.ok) {
+          appendLog('☁  VM force-deleted.', 'warn');
+          setVMPill('idle', 'No VM');
+          stopVMPoll();
+          resetVMUI();
+        } else {
+          appendLog(`✗ Kill failed: ${d.detail}`, 'err');
+          document.getElementById('vmKillBtn').disabled = false;
+        }
+      } catch (e) {
+        appendLog(`✗ ${e}`, 'err');
+        document.getElementById('vmKillBtn').disabled = false;
+      }
+    }
+
+    function startVMPoll() {
+      stopVMPoll();
+      vmPollTimer = setInterval(pollVMStatus, 8000);
+      pollVMStatus();   // immediate first check
+    }
+
+    function stopVMPoll() {
+      if (vmPollTimer) { clearInterval(vmPollTimer); vmPollTimer = null; }
+    }
+
+    async function pollVMStatus() {
+      try {
+        const r = await fetch('/api/vm/status');
+        const d = await r.json();
+        const strip = document.getElementById('vmLogStrip');
+
+        if (d.exists && d.running) {
+          setVMPill('running', d.status);
+          strip.textContent = `VM ${d.status} — check GCP Console for logs`;
+          strip.classList.add('visible');
+        } else if (!d.exists || d.status === 'DELETED') {
+          // VM has self-deleted → merge done!
+          appendLog('✅ VM self-deleted — merge complete! Check bucket Sentinel_Merged/', 'ok');
+          setVMPill('done', 'Done ✓');
+          strip.textContent = '✅ Merge complete — files in gs://aiq-river-imagery/Sentinel_Merged/';
+          stopVMPoll();
+          resetVMUI();
+        } else if (d.status === 'TERMINATED') {
+          setVMPill('error', 'Terminated');
+          strip.textContent = '⚠ VM terminated (check GCP logs for errors)';
+          appendLog('⚠ VM terminated — check GCP Console serial port logs', 'warn');
+          stopVMPoll();
+          resetVMUI();
+        }
+      } catch { /* network hiccup — ignore */ }
+    }
+
+    function setVMPill(state, text) {
+      const pill = document.getElementById('vmPill');
+      pill.className = `vm-pill vm-${state}`;
+      document.getElementById('vmPillTxt').textContent = text;
+    }
+
+    function resetVMUI() {
+      const btn = document.getElementById('vmLaunchBtn');
+      btn.disabled = false;
+      document.getElementById('vmKillBtn').style.display = 'none';
+      document.getElementById('vmKillBtn').disabled = false;
+    }
+
+    // On page load: check if a VM is already running (e.g. after page refresh)
+    (async function checkVMOnLoad() {
+      try {
+        const r = await fetch('/api/vm/status');
+        const d = await r.json();
+        if (d.exists && d.running) {
+          setVMPill('running', d.status);
+          document.getElementById('vmLogStrip').classList.add('visible');
+          document.getElementById('vmKillBtn').style.display = 'inline-flex';
+          document.getElementById('vmLaunchBtn').disabled = true;
+          appendLog(`☁  VM already running (${d.status}) — polling for completion…`, 'info');
+          startVMPoll();
+        }
+      } catch { /* gcloud not available or no VM — ignore */ }
+    })();
+
   </script>
 </body>
 

@@ -4,12 +4,13 @@ drive_token.pickle
 *.pickle
 *.pem
 *.key
+terraform/terraform.tfvars
+.env
 
 # ── Python Environment ─────────────────────────────────────────────
 river_env/
 venv/
 env/
-.env
 __pycache__/
 *.py[cod]
 *.pyo
@@ -20,9 +21,20 @@ __pycache__/
 Imagery_Output/
 Sentinel_Merged/
 river_geometries_batches/
+shapefile/
+
+# ── Terraform State ────────────────────────────────────────────────
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/crash.log
 
 # ── Logs ───────────────────────────────────────────────────────────
+*.log
+*.txt
 !README.md
+!Manual.md
 
 # ── GIS / Large Files ──────────────────────────────────────────────
 *.tif
@@ -35,6 +47,9 @@ river_geometries_batches/
 *.cpg
 *.sbn
 *.sbx
+
+# ── Docker ─────────────────────────────────────────────────────────
+docker-compose.override.yml
 
 # ── OS Files ───────────────────────────────────────────────────────
 .DS_Store

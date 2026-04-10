@@ -17,9 +17,12 @@
   "end_date": "2025-12-31",
   "skip_existing": true,
   "selected_rivers": [
-    "Kumaradhara"
+    "Ajay"
   ],
-  "export_target": "gcs",
+  "export_target": "drive",
+  "gcs_bucket": "aiq-river-imagery",
+  "gcs_sentinel_prefix": "Sentinel",
+  "gcs_merged_prefix": "Sentinel_Merged",
   "selected_bands": [
     "B2",
     "B3",

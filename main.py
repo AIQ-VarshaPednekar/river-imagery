@@ -17,6 +17,8 @@ import asyncio
 import json
 import os
 import sys
+import tempfile
+import shutil
 import time
 import subprocess
 import threading
@@ -72,6 +74,10 @@ DEFAULT_CONFIG = {
     # Export settings
     "export_target":        "drive",          # drive | gcs | both
     "selected_bands":       ["B2", "B3", "B4", "B5", "B6", "B7", "B8", "B8A", "B11", "B12"],
+    # GCS
+    "gcs_bucket":           "aiq-river-imagery",
+    "gcs_sentinel_prefix":  "Sentinel",
+    "gcs_merged_prefix":    "Sentinel_Merged",
     # Processing
     "buffer_distance":      10000,
     "resolution":           10,
@@ -450,7 +456,7 @@ async def start_step3():
 
     pipeline_state["status"]       = "running_step3"
     pipeline_state["current_step"] = 3
-    add_log("STEP 3 — Merge GeoTIFF Tiles")
+    add_log("STEP 3 — Merge GeoTIFF Tiles (local)")
 
     async def _run():
         rc = await _run_runner("run_step3.py")
@@ -466,6 +472,218 @@ async def start_step3():
 
     active_task = asyncio.create_task(_run())
     return {"ok": True}
+
+
+
+# =============================================================================
+# CLOUD VM CONFIG
+# =============================================================================
+
+VM_CONFIG = {
+    "project_id":    "plucky-sight-423703-k5",
+    "zone":          "us-central1-a",          
+    "vm_name":       "river-merge-vm",
+    "machine_type":  "n2-highmem-4",           # 4 CPU / 32 GB RAM
+    "disk_size_gb":  "200GB",
+    "bucket_name":   "aiq-river-imagery",
+    "input_prefix":  "Sentinel",
+    "output_prefix": "Sentinel_Merged",
+}
+
+# =============================================================================
+# ROUTES — Cloud VM Merge
+# =============================================================================
+
+@app.post("/api/vm/launch")
+async def launch_merge_vm(request: Request):
+    """
+    Creates a GCP Compute VM that:
+      1. Downloads tiles from GCS bucket (Sentinel/ prefix)
+      2. Groups by river name, skips already-merged rivers
+      3. Merges tiles with windowed chunked I/O (same as merge_tiles.py)
+      4. Uploads merged GeoTIFFs back to GCS (Sentinel_Merged/ prefix)
+      5. Self-deletes the VM when done
+
+    Requires:  gcloud CLI installed + `gcloud auth application-default login` run once.
+    """
+    global active_task
+
+    body            = await request.json()
+    selected_rivers = body.get("rivers", [])
+
+    # ── Guard: don't launch if VM already exists ─────────────────────────────
+    try:
+        check = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: subprocess.run(
+                ["gcloud", "compute", "instances", "describe",
+                 VM_CONFIG["vm_name"],
+                 "--zone",    VM_CONFIG["zone"],
+                 "--project", VM_CONFIG["project_id"],
+                 "--format=value(status)"],
+                capture_output=True, text=True, timeout=15
+            )
+        )
+        if check.returncode == 0:
+            status = check.stdout.strip()
+            if status in ("RUNNING", "PROVISIONING", "STAGING"):
+                raise HTTPException(409, f"VM already running (status: {status}). Wait for it to finish.")
+    except HTTPException:
+        raise
+    except Exception:
+        pass   # VM doesn't exist yet — proceed
+
+    # ── Build the startup script ─────────────────────────────────────────────
+    rivers_arg = ("--rivers " + " ".join(selected_rivers)) if selected_rivers else ""
+
+    startup_script = f"""#!/bin/bash
+set -e
+exec > >(tee -a /var/log/river_merge.log) 2>&1
+
+echo "============================================"
+echo "  River Sentinel - Cloud VM Merge"
+echo "  $(date '+%Y-%m-%d %H:%M:%S')"
+echo "============================================"
+
+INSTANCE=$(curl -sf -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/name)
+ZONE=$(curl -sf -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/zone | awk -F/ '{{print $NF}}')
+PROJECT=$(curl -sf -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/project/project-id)
+echo "Instance: $INSTANCE | Zone: $ZONE"
+
+echo "[1/4] Installing dependencies..."
+pip3 install --quiet --upgrade pip
+pip3 install --quiet rasterio numpy google-cloud-storage
+echo "Done."
+
+echo "[2/4] Downloading merge script from GCS..."
+mkdir -p /tmp/river_merge
+gsutil cp gs://{VM_CONFIG['bucket_name']}/scripts/vm_merge_gcs.py /tmp/river_merge/vm_merge_gcs.py
+
+echo "[3/4] Running merge..."
+python3 /tmp/river_merge/vm_merge_gcs.py \\
+  --bucket {VM_CONFIG['bucket_name']} \\
+  --input-prefix {VM_CONFIG['input_prefix']} \\
+  --output-prefix {VM_CONFIG['output_prefix']} \\
+  --work-dir /tmp/river_merge \\
+  {rivers_arg}
+EXIT_CODE=$?
+
+echo "[4/4] Self-deleting VM (merge exit code: $EXIT_CODE)..."
+gcloud compute instances delete "$INSTANCE" --zone="$ZONE" --project="$PROJECT" --quiet
+"""
+
+    # ── Write startup script to temp file ────────────────────────────────────
+    tmp_script = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.sh', delete=False, encoding='utf-8'
+        ) as f:
+            f.write(startup_script)
+            tmp_script = f.name
+
+        add_log("☁  Launching GCP merge VM...")
+        add_log(f"   Machine  : {VM_CONFIG['machine_type']} (4 CPU / 32 GB RAM)")
+        add_log(f"   Zone     : {VM_CONFIG['zone']}")
+        add_log(f"   Input    : gs://{VM_CONFIG['bucket_name']}/{VM_CONFIG['input_prefix']}/")
+        add_log(f"   Output   : gs://{VM_CONFIG['bucket_name']}/{VM_CONFIG['output_prefix']}/")
+        if selected_rivers:
+            add_log(f"   Rivers   : {', '.join(selected_rivers)}")
+        else:
+            add_log("   Rivers   : ALL rivers found in bucket")
+
+        gcloud_cmd = [
+            "gcloud", "compute", "instances", "create", VM_CONFIG["vm_name"],
+            "--zone",               VM_CONFIG["zone"],
+            "--project",            VM_CONFIG["project_id"],
+            "--machine-type",       VM_CONFIG["machine_type"],
+            "--image-family",       "debian-12",
+            "--image-project",      "debian-cloud",
+            "--boot-disk-size",     VM_CONFIG["disk_size_gb"],
+            "--boot-disk-type",     "pd-ssd",
+            "--scopes",             "storage-full,logging-write,compute-rw",
+            "--metadata-from-file", f"startup-script={tmp_script}",
+            "--format",             "json",
+        ]
+
+        async def _create_vm():
+            try:
+                result = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: subprocess.run(gcloud_cmd, capture_output=True, text=True, timeout=120)
+                )
+                if result.returncode == 0:
+                    add_log("✓ VM created and booting!")
+                    add_log("  It will self-delete when the merge completes.")
+                    add_log(f"  Stream logs: gcloud compute instances get-serial-port-output "
+                            f"{VM_CONFIG['vm_name']} --zone={VM_CONFIG['zone']}")
+                else:
+                    err = (result.stderr or result.stdout).strip()
+                    add_log(f"✗ VM creation failed: {err}")
+            finally:
+                if tmp_script and os.path.exists(tmp_script):
+                    os.unlink(tmp_script)
+            log_event.set()
+
+        active_task = asyncio.create_task(_create_vm())
+        return {"ok": True, "vm_name": VM_CONFIG["vm_name"], "zone": VM_CONFIG["zone"]}
+
+    except Exception as e:
+        if tmp_script and os.path.exists(tmp_script):
+            os.unlink(tmp_script)
+        raise HTTPException(500, str(e))
+
+
+@app.get("/api/vm/status")
+async def get_vm_status():
+    """Poll this to check if the merge VM is still alive."""
+    try:
+        result = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: subprocess.run(
+                ["gcloud", "compute", "instances", "describe",
+                 VM_CONFIG["vm_name"],
+                 "--zone",    VM_CONFIG["zone"],
+                 "--project", VM_CONFIG["project_id"],
+                 "--format=value(status)"],
+                capture_output=True, text=True, timeout=15
+            )
+        )
+        if result.returncode == 0:
+            status = result.stdout.strip()
+            return {
+                "exists":  True,
+                "status":  status,
+                "running": status in ("RUNNING", "PROVISIONING", "STAGING"),
+            }
+        # Non-zero = VM not found = it self-deleted = merge done
+        return {"exists": False, "status": "DELETED", "running": False}
+    except Exception as e:
+        return {"exists": False, "status": "UNKNOWN", "running": False, "error": str(e)}
+
+
+@app.delete("/api/vm/kill")
+async def kill_merge_vm():
+    """Emergency: force-delete the merge VM."""
+    try:
+        result = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: subprocess.run(
+                ["gcloud", "compute", "instances", "delete",
+                 VM_CONFIG["vm_name"],
+                 "--zone",    VM_CONFIG["zone"],
+                 "--project", VM_CONFIG["project_id"],
+                 "--quiet"],
+                capture_output=True, text=True, timeout=60
+            )
+        )
+        if result.returncode == 0:
+            add_log("☁  VM force-deleted by user.")
+            return {"ok": True}
+        raise HTTPException(500, f"Delete failed: {result.stderr.strip()}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 # =============================================================================

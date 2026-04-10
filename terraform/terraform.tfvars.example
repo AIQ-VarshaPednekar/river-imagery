@@ -1,0 +1,22 @@
+# ── Copy this file to terraform.tfvars and fill in your values ────────────────
+# terraform.tfvars is .gitignored — safe to put real values here
+
+project_id     = ""
+project_number = ""   # gcloud projects describe plucky-sight-423703-k5 --format='value(projectNumber)'
+
+region         = "us-central1"      
+zone           = "us-central1-a"
+
+bucket_name    = "aiq-river-imagery"
+input_prefix   = "Sentinel"
+output_prefix  = "Sentinel_Merged"
+
+vm_name        = "river-merge-vm"
+machine_type   = "n2-highmem-4"    # 4 CPU, 32GB RAM
+disk_size_gb   = 200
+use_spot       = false              # Set true to save ~60% cost
+
+# Leave empty to merge all rivers found in bucket:
+selected_rivers = []
+
+# OR specify rivers:
