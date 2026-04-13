@@ -16,6 +16,7 @@ from contextlib import asynccontextmanager
 import asyncio
 import json
 import os
+import re
 import sys
 import tempfile
 import shutil
@@ -25,6 +26,12 @@ import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+# Strip ANSI escape codes from subprocess output (Terraform, etc.)
+_ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
+def _strip_ansi(text: str) -> str:
+    return _ANSI_ESCAPE.sub('', text)
 
 # =============================================================================
 # PATHS
@@ -661,6 +668,136 @@ async def get_vm_status():
         return {"exists": False, "status": "UNKNOWN", "running": False, "error": str(e)}
 
 
+# =============================================================================
+# ROUTES — DEM Clean
+# =============================================================================
+
+dem_clean_state: dict = {
+    "status": "idle",   # idle | running | done | error
+    "error_msg": None,
+}
+dem_clean_logs: list[dict] = []
+dem_clean_task: Optional[asyncio.Task] = None
+
+@app.get("/api/dem-clean/status")
+async def get_dem_clean_status():
+    return {**dem_clean_state, "log_count": len(dem_clean_logs)}
+
+@app.get("/api/dem-clean/logs")
+async def get_dem_clean_logs(since: int = 0):
+    return {"logs": dem_clean_logs[since:], "total": len(dem_clean_logs)}
+
+@app.post("/api/dem-clean")
+async def run_dem_clean(request: Request):
+    global dem_clean_task
+
+    if dem_clean_state["status"] == "running":
+        raise HTTPException(409, "DEM Clean is already running.")
+
+    body       = await request.json()
+    input_path = body.get("input_path", "").strip()
+    output_path = body.get("output_path", "").strip()
+
+    if not input_path:
+        raise HTTPException(400, "input_path is required.")
+    if not output_path:
+        raise HTTPException(400, "output_path is required.")
+    if not os.path.exists(input_path):
+        raise HTTPException(400, f"Input file not found: {input_path}")
+
+    # Ensure output directory exists
+    out_dir = os.path.dirname(output_path)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
+    script_path = ROOT_DIR / "scripts" / "dem_clean.py"
+    if not script_path.exists():
+        raise HTTPException(500, f"Script not found: {script_path}")
+
+    if sys.platform == "win32":
+        venv_python = ROOT_DIR / "river_env" / "Scripts" / "python.exe"
+    else:
+        venv_python = ROOT_DIR / "river_env" / "bin" / "python"
+    python_exe = str(venv_python) if venv_python.exists() else sys.executable
+
+    dem_clean_state.update({"status": "running", "error_msg": None})
+    dem_clean_logs.clear()
+
+    def _add_dem_log(msg: str):
+        ts = datetime.now().strftime("%H:%M:%S")
+        dem_clean_logs.append({"ts": ts, "msg": msg})
+        # Also mirror to main pipeline log for console visibility
+        add_log(msg)
+
+    _add_dem_log("DEM CLEAN — Starting")
+    _add_dem_log(f"  Input  : {input_path}")
+    _add_dem_log(f"  Output : {output_path}")
+
+    async def _run():
+        global active_process
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        try:
+            process = subprocess.Popen(
+                [python_exe, str(script_path), input_path, output_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=str(ROOT_DIR),
+                universal_newlines=False,
+                env=env,
+            )
+            active_process = process
+
+            def read_stream(stream, prefix=""):
+                for raw in iter(stream.readline, b''):
+                    if raw:
+                        text = raw.decode("utf-8", errors="replace").rstrip()
+                        if text:
+                            _add_dem_log(f"{prefix}{text}")
+
+            t_out = threading.Thread(target=read_stream, args=(process.stdout,), daemon=True)
+            t_err = threading.Thread(target=read_stream, args=(process.stderr, "[ERR] "), daemon=True)
+            t_out.start(); t_err.start()
+
+            rc = await asyncio.get_event_loop().run_in_executor(None, process.wait)
+            t_out.join(timeout=3.0); t_err.join(timeout=3.0)
+
+            if rc == 0:
+                dem_clean_state["status"] = "done"
+                _add_dem_log(f"✅ DEM Clean complete → {output_path}")
+            else:
+                dem_clean_state["status"] = "error"
+                dem_clean_state["error_msg"] = f"Exited with code {rc}"
+                _add_dem_log(f"✗ DEM Clean failed (exit code {rc})")
+        except Exception as exc:
+            import traceback
+            dem_clean_state["status"] = "error"
+            dem_clean_state["error_msg"] = str(exc)
+            _add_dem_log(f"ERROR: {exc}")
+            _add_dem_log(traceback.format_exc())
+        finally:
+            log_event.set()
+
+    dem_clean_task = asyncio.create_task(_run())
+    return {"ok": True}
+
+
+@app.post("/api/dem-clean/reset")
+async def reset_dem_clean():
+    global dem_clean_task, active_process
+    if dem_clean_task and not dem_clean_task.done():
+        dem_clean_task.cancel()
+    if active_process and active_process.poll() is None:
+        try:
+            active_process.kill()
+        except Exception:
+            pass
+    dem_clean_state.update({"status": "idle", "error_msg": None})
+    dem_clean_logs.clear()
+    add_log("DEM Clean reset.")
+    return {"ok": True}
+
+
 @app.delete("/api/vm/kill")
 async def kill_merge_vm():
     """Emergency: force-delete the merge VM."""
@@ -687,9 +824,141 @@ async def kill_merge_vm():
 
 
 # =============================================================================
+# ROUTES — Terraform
+# =============================================================================
+
+TERRAFORM_DIR = ROOT_DIR / "terraform"
+
+terraform_state: dict = {
+    "status":    "idle",   # idle | running | done | destroyed | error
+    "last_log":  "",
+    "error_msg": None,
+}
+terraform_logs: list[dict] = []
+terraform_task: Optional[asyncio.Task] = None
+
+
+def _add_tf_log(msg: str):
+    ts = datetime.now().strftime("%H:%M:%S")
+    terraform_logs.append({"ts": ts, "msg": msg})
+    terraform_state["last_log"] = msg
+    add_log(msg)   # mirror to main console
+
+
+@app.get("/api/terraform/status")
+async def get_tf_status():
+    return {**terraform_state, "log_count": len(terraform_logs)}
+
+
+@app.get("/api/terraform/logs")
+async def get_tf_logs(since: int = 0):
+    return {"logs": terraform_logs[since:], "total": len(terraform_logs)}
+
+
+async def _run_terraform(cmd_args: list[str], success_status: str) -> None:
+    """Run `terraform <cmd_args>` as a subprocess, stream output to logs."""
+    global active_process
+
+    if not TERRAFORM_DIR.exists():
+        _add_tf_log(f"ERROR: terraform/ directory not found at {TERRAFORM_DIR}")
+        terraform_state["status"] = "error"
+        terraform_state["error_msg"] = "terraform/ directory not found"
+        log_event.set()
+        return
+
+    # Find terraform executable
+    tf_exe = shutil.which("terraform") or "terraform"
+
+    env = os.environ.copy()
+    env["TF_IN_AUTOMATION"] = "1"       # suppresses interactive prompts
+    env["TF_CLI_ARGS"]      = "-no-color"  # disable ANSI color codes
+    env["PYTHONIOENCODING"] = "utf-8"
+
+    async def _execute(args):
+        _add_tf_log(f"→ Running: terraform {' '.join(args)}")
+        process = subprocess.Popen(
+            [tf_exe] + args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,   # merge stderr into stdout
+            cwd=str(TERRAFORM_DIR),
+            universal_newlines=False,
+            env=env,
+        )
+        active_process = process
+
+        def _read():
+            for raw in iter(process.stdout.readline, b''):
+                if raw:
+                    text = raw.decode("utf-8", errors="replace").rstrip()
+                    text = _strip_ansi(text)   # remove ANSI color codes
+                    if text:
+                        _add_tf_log(text)
+
+        t = threading.Thread(target=_read, daemon=True)
+        t.start()
+        rc = await asyncio.get_event_loop().run_in_executor(None, process.wait)
+        t.join(timeout=5.0)
+        return rc
+
+    try:
+        # Always init first (safe to re-run, no-op if already done)
+        rc_init = await _execute(["init", "-input=false"])
+        if rc_init != 0:
+            raise RuntimeError(f"terraform init failed (exit {rc_init})")
+
+        rc = await _execute(cmd_args)
+        if rc == 0:
+            terraform_state["status"] = success_status
+            _add_tf_log(f"✅ terraform {cmd_args[0]} complete.")
+        else:
+            raise RuntimeError(f"terraform {cmd_args[0]} exited with code {rc}")
+
+    except Exception as exc:
+        import traceback
+        terraform_state["status"] = "error"
+        terraform_state["error_msg"] = str(exc)
+        _add_tf_log(f"✗ {exc}")
+        _add_tf_log(traceback.format_exc())
+    finally:
+        log_event.set()
+
+
+@app.post("/api/terraform/apply")
+async def terraform_apply():
+    global terraform_task
+    if terraform_state["status"] == "running":
+        raise HTTPException(409, "Terraform is already running.")
+
+    terraform_state.update({"status": "running", "last_log": "", "error_msg": None})
+    terraform_logs.clear()
+    _add_tf_log("TERRAFORM — apply -auto-approve")
+
+    terraform_task = asyncio.create_task(
+        _run_terraform(["apply", "-auto-approve", "-input=false"], success_status="done")
+    )
+    return {"ok": True}
+
+
+@app.post("/api/terraform/destroy")
+async def terraform_destroy():
+    global terraform_task
+    if terraform_state["status"] == "running":
+        raise HTTPException(409, "Terraform is already running.")
+
+    terraform_state.update({"status": "running", "last_log": "", "error_msg": None})
+    terraform_logs.clear()
+    _add_tf_log("TERRAFORM — destroy -auto-approve")
+
+    terraform_task = asyncio.create_task(
+        _run_terraform(["destroy", "-auto-approve", "-input=false"], success_status="destroyed")
+    )
+    return {"ok": True}
+
+
+# =============================================================================
 # ENTRY POINT
 # =============================================================================
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

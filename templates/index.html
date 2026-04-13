@@ -981,6 +981,199 @@
     .btn-purple:hover:not(:disabled) {
       background: rgba(167,139,250,.15);
     }
+
+    /* ─── DEM CLEAN SECTION ──────────────────────────────────────────────────── */
+    .dem-section {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .dem-section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .dem-title-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .dem-icon {
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .dem-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .dem-subtitle {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .dem-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 14px;
+    }
+
+    .dem-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .dem-label {
+      font-size: 9px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .dem-input {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 7px 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      outline: none;
+      transition: border-color .12s;
+      width: 100%;
+    }
+
+    .dem-input:focus {
+      border-color: var(--teal-dim);
+    }
+
+    .dem-input::placeholder {
+      color: var(--text-dim);
+    }
+
+    .dem-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .dem-status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 10px;
+    }
+
+    .btn-green {
+      border-color: rgba(34, 212, 114, .4);
+      color: var(--green);
+      background: var(--green-dim);
+    }
+
+    .btn-green:hover:not(:disabled) {
+      background: rgba(34, 212, 114, .2);
+    }
+
+    /* ─── TERRAFORM SECTION ──────────────────────────────────────────────── */
+    .tf-section {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .tf-section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .tf-title-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .tf-icon { font-size: 18px; line-height: 1; }
+
+    .tf-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .tf-subtitle {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .tf-body {
+      display: flex;
+      align-items: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .tf-desc {
+      flex: 1;
+      min-width: 200px;
+      font-size: 10px;
+      color: var(--text-muted);
+      line-height: 1.65;
+    }
+
+    .tf-desc b   { color: var(--text); font-weight: 500; }
+    .tf-desc code {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--purple);
+      background: rgba(167,139,250,.07);
+      padding: 1px 5px;
+      border: 1px solid rgba(167,139,250,.3);
+    }
+
+    .tf-actions  { display: flex; gap: 7px; align-items: center; flex-shrink: 0; }
+
+    .tf-log-strip {
+      font-size: 10px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      min-height: 28px;
+      max-height: 28px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      display: none;
+    }
+
+    .tf-log-strip.visible { display: block; }
+
+    .tf-status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 10px;
+    }
   </style>
 </head>
 
@@ -1117,10 +1310,6 @@
           </div>
 
         </div>
-
-        </div><!-- /.steps-row -->
-
-        </div>
       </div>
 
       <!-- GEE reminder (shown after step 1 completes) -->
@@ -1133,47 +1322,92 @@
         Then click <strong>Start Download</strong> above.
       </div>
 
-      <!-- ── CLOUD VM MERGE ─────────────────────────────────────────────────── -->
+      <!-- ── DEM CLEAN ───────────────────────────────────────────────────────── -->
       <div>
-        <div class="sec-label">Cloud Merge (GCS → GCP VM → GCS)</div>
-        <div class="vm-section">
-          <div class="vm-section-head">
-            <div class="vm-title-group">
-              <span class="vm-icon">☁</span>
+        <div class="sec-label">DEM Cleaning (remove null / black pixels)</div>
+        <div class="dem-section">
+          <div class="dem-section-head">
+            <div class="dem-title-group">
+              <span class="dem-icon">🗺</span>
               <div>
-                <div class="vm-title">GCP VM Tile Merger</div>
-                <div class="vm-subtitle">Spins up a VM, merges tiles in bucket, uploads result, self-deletes</div>
+                <div class="dem-title">DEM Cleaner</div>
+                <div class="dem-subtitle">Strips NoData & zero-elevation pixels, forces GTiff driver, builds overviews</div>
               </div>
             </div>
-            <div class="vm-status-bar">
-              <div class="vm-pill vm-idle" id="vmPill">
+            <div class="dem-status-bar">
+              <div class="vm-pill vm-idle" id="demPill">
                 <span class="vm-pill-dot"></span>
-                <span id="vmPillTxt">No VM</span>
+                <span id="demPillTxt">Idle</span>
               </div>
             </div>
           </div>
 
-          <div class="vm-body">
-            <div class="vm-desc">
-              Reads tiles from <code>gs://aiq-river-imagery/Sentinel/</code>,
-              groups by river name, skips <b>already-merged</b> rivers, merges
-              remaining tiles using windowed chunked I/O, and uploads
-              <code>RiverName_merged.tif</code> to <code>Sentinel_Merged/</code>.
-              The VM (<b>n2-highmem-4</b>, 32 GB RAM) then <b>self-deletes</b>.
-              Uses your GCP account credentials via <code>gcloud</code>.
+          <div class="dem-fields">
+            <div class="dem-field">
+              <label class="dem-label" for="demInputPath">Input DEM Path</label>
+              <input id="demInputPath" class="dem-input"
+                placeholder="C:\path\to\input.tif"
+                title="Full path to the source GeoTIFF / DEM raster">
             </div>
-            <div class="vm-actions">
-              <button class="btn btn-red" id="vmKillBtn"
-                onclick="killVM()" style="display:none">
-                ✕&nbsp; Kill VM
+            <div class="dem-field">
+              <label class="dem-label" for="demOutputPath">Output DEM Path</label>
+              <input id="demOutputPath" class="dem-input"
+                placeholder="C:\path\to\output_clean.tif"
+                title="Full path where the cleaned GeoTIFF will be saved">
+            </div>
+          </div>
+
+          <div class="dem-actions">
+            <button class="btn btn-green" id="demRunBtn" onclick="runDemClean()">
+              ▶ &nbsp;Run DEM Clean
+            </button>
+            <button class="btn btn-red" id="demResetBtn" onclick="resetDemClean()" style="display:none">
+              ↺ &nbsp;Reset
+            </button>
+            <span id="demResultMsg" style="font-size:10px;color:var(--text-dim)"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TERRAFORM APPLY ───────────────────────────────────────────────────── -->
+      <div>
+        <div class="sec-label">Terraform — Create / Recreate Merge VM Infrastructure</div>
+        <div class="tf-section">
+          <div class="tf-section-head">
+            <div class="tf-title-group">
+              <span class="tf-icon">🛠</span>
+              <div>
+                <div class="tf-title">Terraform Apply</div>
+                <div class="tf-subtitle">Provisions GCP IAM bindings &amp; the merge VM via <code>terraform apply -auto-approve</code></div>
+              </div>
+            </div>
+            <div class="tf-status-bar">
+              <div class="vm-pill vm-idle" id="tfPill">
+                <span class="vm-pill-dot"></span>
+                <span id="tfPillTxt">Idle</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tf-body">
+            <div class="tf-desc">
+              Runs <code>terraform apply -auto-approve</code> in the <b>terraform/</b> directory.
+              Creates IAM bindings, boots the <b>n2-highmem-4</b> (32 GB) merge VM, uploads tiles,
+              merges them, and self-deletes. Re-run any time to recreate the VM after
+              it self-deletes. Uses <code>gcloud</code> ADC credentials — no service account key needed.
+            </div>
+            <div class="tf-actions">
+              <button class="btn btn-red" id="tfDestroyBtn"
+                onclick="tfDestroy()" style="display:none">
+                ✗  terraform destroy
               </button>
-              <button class="btn btn-purple" id="vmLaunchBtn" onclick="launchVM()">
-                ☁&nbsp; Launch &amp; Merge
+              <button class="btn btn-purple" id="tfApplyBtn" onclick="tfApply()">
+                🛠  terraform apply
               </button>
             </div>
           </div>
 
-          <div class="vm-log-strip" id="vmLogStrip">Waiting for VM…</div>
+          <div class="tf-log-strip" id="tfLogStrip">Waiting for Terraform…</div>
         </div>
       </div>
 
@@ -1708,126 +1942,202 @@
     function openCfg() { document.getElementById('cfgModal').classList.add('open'); }
     function closeCfg() { document.getElementById('cfgModal').classList.remove('open'); }
 
-    // ═══ CLOUD VM MERGE ══════════════════════════════════════════════════════════
+    // ═══ DEM CLEAN ════════════════════════════════════════════════════════════════
 
-    let vmPollTimer = null;
+    let demPollTimer = null;
 
-    async function launchVM() {
-      const rivers = [...selected];   // use currently selected rivers (empty = all)
-      const btn = document.getElementById('vmLaunchBtn');
-      btn.disabled = true;
+    async function runDemClean() {
+      const inputPath  = document.getElementById('demInputPath').value.trim();
+      const outputPath = document.getElementById('demOutputPath').value.trim();
 
-      appendLog('☁  Launching GCP merge VM…', 'info');
+      if (!inputPath)  { appendLog('✗ DEM Clean: Input path is required.', 'err');  return; }
+      if (!outputPath) { appendLog('✗ DEM Clean: Output path is required.', 'err'); return; }
+
+      document.getElementById('demRunBtn').disabled = true;
+      document.getElementById('demResetBtn').style.display = 'inline-flex';
+      document.getElementById('demResultMsg').textContent = '';
+      setDemPill('running', 'Running…');
+      appendLog('🗺  DEM Clean — starting…', 'info');
 
       try {
-        const r = await fetch('/api/vm/launch', {
+        const r = await fetch('/api/dem-clean', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rivers })
+          body: JSON.stringify({ input_path: inputPath, output_path: outputPath })
         });
         const d = await r.json();
         if (!r.ok) {
-          appendLog(`✗ VM launch failed: ${d.detail}`, 'err');
-          btn.disabled = false;
+          appendLog(`✗ DEM Clean failed: ${d.detail}`, 'err');
+          setDemPill('error', 'Error');
+          document.getElementById('demRunBtn').disabled = false;
           return;
         }
-        appendLog(`✓ VM creation request sent (${d.vm_name} / ${d.zone})`, 'ok');
-        appendLog('  Monitor: GCP Console → Compute Engine → VM Instances', 'info');
-        setVMPill('running', 'Provisioning…');
-        document.getElementById('vmLogStrip').classList.add('visible');
-        document.getElementById('vmKillBtn').style.display = 'inline-flex';
-        startVMPoll();
+        startDemPoll();
       } catch (e) {
-        appendLog(`✗ ${e}`, 'err');
-        btn.disabled = false;
+        appendLog(`✗ DEM Clean error: ${e}`, 'err');
+        setDemPill('error', 'Error');
+        document.getElementById('demRunBtn').disabled = false;
       }
     }
 
-    async function killVM() {
-      if (!confirm('Force-delete the merge VM? The merge in progress will be lost.')) return;
-      document.getElementById('vmKillBtn').disabled = true;
+    async function resetDemClean() {
+      await fetch('/api/dem-clean/reset', { method: 'POST' });
+      stopDemPoll();
+      setDemPill('idle', 'Idle');
+      document.getElementById('demRunBtn').disabled = false;
+      document.getElementById('demResetBtn').style.display = 'none';
+      document.getElementById('demResultMsg').textContent = '';
+      appendLog('DEM Clean reset.', 'dim');
+    }
+
+    function startDemPoll() {
+      stopDemPoll();
+      demPollTimer = setInterval(pollDemStatus, 1500);
+    }
+
+    function stopDemPoll() {
+      if (demPollTimer) { clearInterval(demPollTimer); demPollTimer = null; }
+    }
+
+    async function pollDemStatus() {
       try {
-        const r = await fetch('/api/vm/kill', { method: 'DELETE' });
+        const r = await fetch('/api/dem-clean/status');
         const d = await r.json();
-        if (r.ok) {
-          appendLog('☁  VM force-deleted.', 'warn');
-          setVMPill('idle', 'No VM');
-          stopVMPoll();
-          resetVMUI();
-        } else {
-          appendLog(`✗ Kill failed: ${d.detail}`, 'err');
-          document.getElementById('vmKillBtn').disabled = false;
+
+        if (d.status === 'done') {
+          setDemPill('done', 'Done ✓');
+          document.getElementById('demResultMsg').textContent =
+            '✅ Clean file saved successfully';
+          document.getElementById('demResultMsg').style.color = 'var(--green)';
+          document.getElementById('demRunBtn').disabled = false;
+          stopDemPoll();
+        } else if (d.status === 'error') {
+          setDemPill('error', 'Error');
+          document.getElementById('demResultMsg').textContent =
+            `✗ ${d.error_msg || 'Unknown error'}`;
+          document.getElementById('demResultMsg').style.color = 'var(--red)';
+          document.getElementById('demRunBtn').disabled = false;
+          stopDemPoll();
         }
-      } catch (e) {
-        appendLog(`✗ ${e}`, 'err');
-        document.getElementById('vmKillBtn').disabled = false;
-      }
+        // 'running' — keep polling
+      } catch { /* ignore */ }
     }
 
-    function startVMPoll() {
-      stopVMPoll();
-      vmPollTimer = setInterval(pollVMStatus, 8000);
-      pollVMStatus();   // immediate first check
-    }
-
-    function stopVMPoll() {
-      if (vmPollTimer) { clearInterval(vmPollTimer); vmPollTimer = null; }
-    }
-
-    async function pollVMStatus() {
-      try {
-        const r = await fetch('/api/vm/status');
-        const d = await r.json();
-        const strip = document.getElementById('vmLogStrip');
-
-        if (d.exists && d.running) {
-          setVMPill('running', d.status);
-          strip.textContent = `VM ${d.status} — check GCP Console for logs`;
-          strip.classList.add('visible');
-        } else if (!d.exists || d.status === 'DELETED') {
-          // VM has self-deleted → merge done!
-          appendLog('✅ VM self-deleted — merge complete! Check bucket Sentinel_Merged/', 'ok');
-          setVMPill('done', 'Done ✓');
-          strip.textContent = '✅ Merge complete — files in gs://aiq-river-imagery/Sentinel_Merged/';
-          stopVMPoll();
-          resetVMUI();
-        } else if (d.status === 'TERMINATED') {
-          setVMPill('error', 'Terminated');
-          strip.textContent = '⚠ VM terminated (check GCP logs for errors)';
-          appendLog('⚠ VM terminated — check GCP Console serial port logs', 'warn');
-          stopVMPoll();
-          resetVMUI();
-        }
-      } catch { /* network hiccup — ignore */ }
-    }
-
-    function setVMPill(state, text) {
-      const pill = document.getElementById('vmPill');
+    function setDemPill(state, text) {
+      const pill = document.getElementById('demPill');
       pill.className = `vm-pill vm-${state}`;
-      document.getElementById('vmPillTxt').textContent = text;
+      document.getElementById('demPillTxt').textContent = text;
     }
 
-    function resetVMUI() {
-      const btn = document.getElementById('vmLaunchBtn');
-      btn.disabled = false;
-      document.getElementById('vmKillBtn').style.display = 'none';
-      document.getElementById('vmKillBtn').disabled = false;
-    }
+    // ═══ TERRAFORM ═════════════════════════════════════════════════════
 
-    // On page load: check if a VM is already running (e.g. after page refresh)
-    (async function checkVMOnLoad() {
+    let tfPollTimer = null;
+
+    async function tfApply() {
+      if (!confirm('⚠️ Run terraform apply -auto-approve?\n\nThis will provision GCP infrastructure (VM, IAM) and start the tile merge.\n\nMake sure terraform.tfvars is correct before proceeding.')) return;
+
+      document.getElementById('tfApplyBtn').disabled = true;
+      document.getElementById('tfDestroyBtn').style.display = 'inline-flex';
+      document.getElementById('tfLogStrip').classList.add('visible');
+      document.getElementById('tfLogStrip').textContent = 'Running terraform init + apply…';
+      setTfPill('running', 'Applying…');
+      appendLog('🛠  Terraform apply — starting…', 'info');
+
       try {
-        const r = await fetch('/api/vm/status');
+        const r = await fetch('/api/terraform/apply', { method: 'POST' });
         const d = await r.json();
-        if (d.exists && d.running) {
-          setVMPill('running', d.status);
-          document.getElementById('vmLogStrip').classList.add('visible');
-          document.getElementById('vmKillBtn').style.display = 'inline-flex';
-          document.getElementById('vmLaunchBtn').disabled = true;
-          appendLog(`☁  VM already running (${d.status}) — polling for completion…`, 'info');
-          startVMPoll();
+        if (!r.ok) {
+          appendLog(`✗ Terraform failed: ${d.detail}`, 'err');
+          setTfPill('error', 'Error');
+          document.getElementById('tfApplyBtn').disabled = false;
+          return;
         }
-      } catch { /* gcloud not available or no VM — ignore */ }
+        startTfPoll();
+      } catch (e) {
+        appendLog(`✗ Terraform error: ${e}`, 'err');
+        setTfPill('error', 'Error');
+        document.getElementById('tfApplyBtn').disabled = false;
+      }
+    }
+
+    async function tfDestroy() {
+      if (!confirm('🚨 Run terraform destroy?\n\nThis will DELETE all infrastructure created by Terraform (VM + IAM bindings).\n\nThis cannot be undone. Continue?')) return;
+
+      document.getElementById('tfDestroyBtn').disabled = true;
+      document.getElementById('tfLogStrip').classList.add('visible');
+      document.getElementById('tfLogStrip').textContent = 'Running terraform destroy…';
+      setTfPill('running', 'Destroying…');
+      appendLog('🛠  Terraform destroy — starting…', 'warn');
+
+      try {
+        const r = await fetch('/api/terraform/destroy', { method: 'POST' });
+        const d = await r.json();
+        if (!r.ok) { appendLog(`✗ Destroy failed: ${d.detail}`, 'err'); }
+        startTfPoll();
+      } catch (e) {
+        appendLog(`✗ ${e}`, 'err');
+      } finally {
+        document.getElementById('tfDestroyBtn').disabled = false;
+      }
+    }
+
+    function startTfPoll() {
+      stopTfPoll();
+      tfPollTimer = setInterval(pollTfStatus, 1500);
+    }
+
+    function stopTfPoll() {
+      if (tfPollTimer) { clearInterval(tfPollTimer); tfPollTimer = null; }
+    }
+
+    async function pollTfStatus() {
+      try {
+        const r = await fetch('/api/terraform/status');
+        const d = await r.json();
+        const strip = document.getElementById('tfLogStrip');
+
+        if (d.last_log) strip.textContent = d.last_log;
+
+        if (d.status === 'done') {
+          setTfPill('done', 'Done ✓');
+          appendLog('✅ Terraform apply complete! VM is booting.', 'ok');
+          document.getElementById('tfApplyBtn').disabled = false;
+          stopTfPoll();
+        } else if (d.status === 'destroyed') {
+          setTfPill('idle', 'Destroyed');
+          appendLog('✅ Terraform destroy complete.', 'ok');
+          document.getElementById('tfApplyBtn').disabled = false;
+          document.getElementById('tfDestroyBtn').style.display = 'none';
+          stopTfPoll();
+        } else if (d.status === 'error') {
+          setTfPill('error', 'Error');
+          appendLog(`✗ Terraform failed: ${d.error_msg || 'check console'}`, 'err');
+          document.getElementById('tfApplyBtn').disabled = false;
+          stopTfPoll();
+        }
+      } catch { /* ignore */ }
+    }
+
+    function setTfPill(state, text) {
+      const pill = document.getElementById('tfPill');
+      pill.className = `vm-pill vm-${state}`;
+      document.getElementById('tfPillTxt').textContent = text;
+    }
+
+    // On page load: check if terraform is running
+    (async function checkTfOnLoad() {
+      try {
+        const r = await fetch('/api/terraform/status');
+        const d = await r.json();
+        if (d.status === 'running') {
+          setTfPill('running', 'Running…');
+          document.getElementById('tfApplyBtn').disabled = true;
+          document.getElementById('tfDestroyBtn').style.display = 'inline-flex';
+          document.getElementById('tfLogStrip').classList.add('visible');
+          appendLog('🛠  Terraform is already running — polling…', 'info');
+          startTfPoll();
+        }
+      } catch { }
     })();
 
   </script>
