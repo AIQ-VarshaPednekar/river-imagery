@@ -19,7 +19,7 @@
   "selected_rivers": [
     "Ajay"
   ],
-  "export_target": "drive",
+  "export_target": "both",
   "gcs_bucket": "aiq-river-imagery",
   "gcs_sentinel_prefix": "Sentinel",
   "gcs_merged_prefix": "Sentinel_Merged",
