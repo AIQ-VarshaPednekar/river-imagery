@@ -563,50 +563,36 @@ Grouping rule: `filename.split('-000')[0]` if `-000` is in the name, else strip 
 
 ### `scripts/dem_clean.py` — Raster Cleaner
 
-**Role:** Remove invalid pixels from a GeoTIFF (DEM or Sentinel-2 multi-band).
+**Role:** Hunts down garbage pixels (NoData, NaN, padding) block-by-block and stamps them with the file's official NoData sentinel, without loading the full image into RAM. Now features online algorithms for memory-efficient streaming statistics.
 
-#### Auto-Detection Logic
+#### Architecture Highlights
 
-```python
-n_bands = src.count
-MODE = "sentinel" if n_bands > 1 else "dem"
-```
+1. **Auto-Routing by Band Count:**
+   - 1 band → routed to `clean_dem()` (SRTM/nDSM data).
+   - N bands → routed to `clean_sentinel()` (multi-band reflectance data).
+   - *Why band count over dtype?* Dtypes can vary (DEMs can be float32 or uint16), but the physical sensor limits band counts reliably.
 
-> Single band = DEM (SRTM has only one elevation band)
-> Multiple bands = Sentinel-2 (10 spectral bands)
+2. **Windowed I/O (Memory Efficiency):**
+   - Iterates using `src.block_windows()`.
+   - Modifies masks in-place (`np.putmask`) and immediately writes chunks back to disk.
+   - Peak RAM usage stays strictly proportional to a single 256×256 tile size, allowing processing of arbitrary-sized rasters across India.
 
-#### Mask Construction
+3. **Streaming Statistics (Online Algorithm):**
+   - Calculates exact standard deviation and mean without accumulating all pixel values in memory.
+   - Uses Welford's online variance equivalent over running sums (`Σx` and `Σx²`), updating per tile, scaling gracefully to rasters with >500 million pixels.
 
-**DEM mode:**
-```python
-mask_nan    = np.isnan(band)              # NaN from float conversion
-mask_nodata = (band == nodata_in)         # Declared NoData value in file
-mask_zero   = (band <= 0) & ~mask_nan    # Zero/negative elevation = invalid
+#### Mask Construction Strategy
 
-combined = mask_nan | mask_nodata | mask_zero
-band[combined] = -9999.0                  # Replace all invalid with standardised NoData
-```
+- **DEM mode (single-band float or int):**
+  - **NaN:** Dropout or sensor measurement invalid.
+  - **Zero/Negative:** For nDSM, elevation ≤ 0 is physically impossible. Handled safely for coastal areas.
 
-**Sentinel mode:**
-```python
-mask_nan     = np.any(np.isnan(chunk), axis=0)     # NaN in ANY band
-mask_nodata  = np.all(chunk == nodata_in, axis=0)  # ALL bands = declared NoData
-mask_allzero = np.all(chunk == 0, axis=0)           # ALL bands = 0 (GEE padding)
-
-combined = mask_nan | mask_nodata | mask_allzero
-chunk[:, combined] = -9999.0                         # Replace across all bands
-```
-
-> **Why `np.all()` for nodata/zero in Sentinel?** A single band being zero is plausible (some spectral bands can legitimately be zero). But ALL 10 bands being zero or exactly matching NoData simultaneously is almost certainly padding, not real data.
+- **Sentinel mode (multi-band uint16):**
+  - **Conservative masking:** An entire pixel is nulled *only* if ALL bands are exactly 0 (indicating padding/edge). Valid variations where one surface completely absorbs a wavelength (e.g. NIR over deep water) are correctly preserved.
 
 #### Overview Pyramids
 
-```python
-with rasterio.open(output, "r+") as dst:
-    dst.build_overviews([2, 4, 8, 16], Resampling.average)
-```
-
-> Overview levels [2, 4, 8, 16] create pre-computed 1/2, 1/4, 1/8, 1/16 resolution versions. QGIS reads the appropriate level based on zoom — massive speed improvement for large files.
+Built immediately after the write handle is closed using `dst.build_overviews([2, 4, 8, 16], Resampling.average)` to provide massive speedups during QGIS visualization.
 
 ---
 
@@ -922,18 +908,20 @@ terraform destroy   # Remove IAM (VM already gone after merge)
 
 ### From Command Line
 
+The command line interface handles auto-routing seamlessly for dashboards, but allows explicit override using subcommands for manual runs:
+
 ```bash
-# Auto-detect type
+# Auto-detect type (Dashboard friendly: no mode word needed)
 python scripts/dem_clean.py input.tif output_clean.tif
 
-# Force DEM mode
-python scripts/dem_clean.py input.tif output_clean.tif --type dem
+# Explicit DEM mode
+python scripts/dem_clean.py dem input.tif output_clean.tif
 
-# Force Sentinel mode
-python scripts/dem_clean.py input.tif output_clean.tif --type sentinel
+# Explicit Sentinel-2 mode
+python scripts/dem_clean.py s2 input.tif output_clean.tif
 
-# Use smaller chunks (less RAM, slower)
-python scripts/dem_clean.py input.tif output_clean.tif --chunk 256
+# Clean both simultaneously
+python scripts/dem_clean.py both dem_in.tif dem_out.tif s2_in.tif s2_out.tif
 ```
 
 ### What Gets Removed
@@ -941,11 +929,11 @@ python scripts/dem_clean.py input.tif output_clean.tif --chunk 256
 | Pixel Type | DEM Mode | Sentinel Mode |
 |------------|----------|---------------|
 | NaN pixels | ✅ Removed | ✅ Removed (any band has NaN) |
-| Declared NoData | ✅ Removed | ✅ Removed (ALL bands match NoData) |
+| Declared NoData | ✅ Preserved (already NoData) | ✅ Preserved (already NoData) |
 | Zero/negative elevation | ✅ Removed | — |
 | All-band zero pixels | — | ✅ Removed (GEE bounding box padding) |
 
-Invalid pixels are replaced with `-9999.0` (float32 output) or `0` (uint16 input).
+Invalid pixels are replaced with mathematically-safe NoData sentinels depending on the input dtype (e.g., `-9999.0` for `float32`, `0` for `uint16`).
 
 ---
 
