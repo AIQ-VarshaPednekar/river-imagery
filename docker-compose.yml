@@ -1,0 +1,18 @@
+services:
+  app:
+    build: .
+    container_name: river-sentinel-dashboard
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      # Note: For Terraform and Application Default Credentials to work via gcloud,
+      # you will need to authenticate inside the container, or map your credentials.
+      # To login inside the container after running 'docker compose up -d':
+      #   docker exec -it river-sentinel-dashboard gcloud auth application-default login
+      #
+      # Example mapping for Google Cloud credentials on Windows:
+      # - ${APPDATA}\gcloud:/root/.config/gcloud
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
